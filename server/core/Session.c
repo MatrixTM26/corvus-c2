@@ -7,6 +7,15 @@ void SessionInit(Session *S)
     memset(S, 0, sizeof(*S));
 }
 
+static void ReprintPrompt(Session *S)
+{
+    if (S->Interactive)
+        printf("\r\033[KC2Session[%s]> ", S->Address);
+    else
+        printf("\r\033[KC2Main> ");
+    fflush(stdout);
+}
+
 void SessionRegister(Session *S, const char *Addr)
 {
     int WasActive = S->Active;
@@ -15,13 +24,15 @@ void SessionRegister(Session *S, const char *Addr)
     S->Address[AddrSize - 1] = '\0';
 
     if (!WasActive) {
-        printf("\n[+] New agent registered: %s\n", S->Address);
-        if (S->Interactive)
-            printf("C2Session[%s]> ", S->Address);
-        else
-            printf("C2Main> ");
-        fflush(stdout);
+        printf("\r\033[K[+] Agent connected: %s\n", S->Address);
+        ReprintPrompt(S);
     }
+}
+
+void SessionNotifyOutput(Session *S)
+{
+    printf("\r\033[K[Output]\n%s\n", S->LastOutput);
+    ReprintPrompt(S);
 }
 
 void SessionSendCommand(Session *S, const char *Cmd)
@@ -49,7 +60,7 @@ void SessionLeave(Session *S)
 void SessionKill(Session *S)
 {
     SessionSendCommand(S, "kill");
-    printf("[*] Kill command queued.\n");
+    printf("[*] Kill queued.\n");
     S->Interactive = 0;
     fflush(stdout);
 }

