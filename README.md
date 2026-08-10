@@ -12,8 +12,8 @@ cd agent  && make        # -> ./agent
 ## Run
 
 ```bash
-./server/c2server -s 0.0.0.0 -p 4444
-./agent/agent -s 127.0.0.1 -p 4444
+./server/c2server -s 0.0.0.0 -p 4444 -m http
+./agent/agent -s 127.0.0.1 -p 4444 -m http
 ```
 
 ## Console Commands

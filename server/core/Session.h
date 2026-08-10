@@ -1,24 +1,43 @@
 #ifndef SESSION_H
 #define SESSION_H
 
-#define BufSize  4096
-#define AddrSize 64
+#include "Config.h"
+#include <time.h>
+
+typedef enum {
+    StateIdle    = 0,
+    StateActive  = 1,
+    StateDead    = 2
+} SessionState;
 
 typedef struct {
-    int  Active;
-    int  Interactive;
-    int  HasPending;
-    char Address[AddrSize];
-    char Pending[BufSize];
-    char LastOutput[BufSize];
-} Session;
+    int          Id;
+    SessionState State;
+    char         Address[AddrSize];
+    time_t       FirstSeen;
+    time_t       LastSeen;
+    int          HasPending;
+    char         Pending[BufSize];
+    char         LastOutput[BufSize];
+} AgentSession;
 
-void SessionInit(Session *S);
-void SessionRegister(Session *S, const char *Addr);
-void SessionNotifyOutput(Session *S);
-void SessionSendCommand(Session *S, const char *Cmd);
-void SessionEnter(Session *S);
-void SessionLeave(Session *S);
-void SessionKill(Session *S);
+typedef struct {
+    AgentSession Slots[MaxSessions];
+    int          Count;
+    int          Interactive;
+    int          ActiveId;
+} SessionPool;
+
+void          PoolInit(SessionPool *P);
+AgentSession *PoolRegister(SessionPool *P, const char *Addr);
+AgentSession *PoolById(SessionPool *P, int Id);
+AgentSession *PoolActive(SessionPool *P);
+void          PoolList(SessionPool *P);
+void          PoolKill(SessionPool *P, int Id);
+void          PoolEnter(SessionPool *P, int Id);
+void          PoolLeave(SessionPool *P);
+void          PoolQueueCommand(AgentSession *S, const char *Cmd);
+void          PoolNotifyConnect(SessionPool *P, AgentSession *S);
+void          PoolNotifyOutput(SessionPool *P, AgentSession *S);
 
 #endif
