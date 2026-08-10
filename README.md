@@ -1,6 +1,6 @@
 # Simple C2
 
-simple command and control server written in C
+simple command and control (c2) server written in C
 
 ## Build
 
