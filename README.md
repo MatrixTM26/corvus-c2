@@ -1,21 +1,5 @@
-# Simple C2 v3
-
-## Structure
-
-```
-server/
-├── main.c
-├── Makefile
-└── core/
-    ├── Cipher.c/.h
-    ├── Session.c/.h
-    ├── Network.c/.h
-    └── Console.c/.h
-
-agent/
-├── agent.c
-└── Makefile
-```
+# Simple C2
+simple command and control server written in C
 
 ## Build
 
@@ -28,7 +12,7 @@ cd agent  && make        # -> ./agent
 
 ```bash
 ./server/c2server -s 0.0.0.0 -p 4444
-./agent/agent -s <ip> -p 4444
+./agent/agent -s 127.0.0.1 -p 4444
 ```
 
 ## Console Commands
