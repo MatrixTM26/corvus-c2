@@ -46,27 +46,27 @@ int ConsoleExec(const char *Line, Session *S)
 
         } else if (IsCmd(Line, "clear")) {
             ClearScreen();
-            printf("C2Session[%s]> ", S->Address);
+            printf("session-[%s] ~$ ", S->Address);
             fflush(stdout);
 
         } else if (IsCmd(Line, "kill") || IsCmd(Line, "exit") || IsCmd(Line, "quit")) {
             SessionKill(S);
-            printf("C2Main> ");
+            printf("C2 ~$ ");
             fflush(stdout);
 
         } else if (IsCmd(Line, "help")) {
             ConsolePrintHelp();
-            printf("C2Session[%s]> ", S->Address);
+            printf("session-[%s] ~$ ", S->Address);
             fflush(stdout);
 
         } else if (strlen(Line) > 0) {
             SessionSendCommand(S, Line);
             printf("[*] Queued — waiting for beacon...\n");
-            printf("C2Session[%s]> ", S->Address);
+            printf("session-[%s] ~$ ", S->Address);
             fflush(stdout);
 
         } else {
-            printf("C2Session[%s]> ", S->Address);
+            printf("session-[%s] ~$ ", S->Address);
             fflush(stdout);
         }
 
