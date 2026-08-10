@@ -1,4 +1,5 @@
 # Simple C2
+
 simple command and control server written in C
 
 ## Build
@@ -17,7 +18,7 @@ cd agent  && make        # -> ./agent
 
 ## Console Commands
 
-```
+```txt
 help              Show help
 sessions          List active agents          (alias: session)
 use 1             Enter interactive shell     (alias: interact 1)
@@ -26,3 +27,5 @@ kill              Kill connected agent
 clear             Clear screen
 exit / quit       Shutdown server
 ```
+
+<p align="center">&copy; 2023-2026 MatrixTM26</p>
