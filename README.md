@@ -1,42 +1,44 @@
-# Simple C2 — Refactored
+# Simple C2 v3
 
 ## Structure
 
 ```
 server/
-├── main.c              Entry point + select() event loop
+├── main.c
 ├── Makefile
 └── core/
-    ├── Cipher.c/.h     XOR obfuscation (key 0x5A)
-    ├── Session.c/.h    Agent session state machine
-    ├── Network.c/.h    Listener, beacon handler
-    └── Console.c/.h    Operator terminal / CLI
+    ├── Cipher.c/.h
+    ├── Session.c/.h
+    ├── Network.c/.h
+    └── Console.c/.h
 
-beacon/
-└── beacon.c            Agent (unchanged)
+agent/
+├── agent.c
+└── Makefile
 ```
 
 ## Build
 
 ```bash
-cd server && make
-gcc -o beacon beacon/beacon.c
+cd server && make        # -> ./c2server
+cd agent  && make        # -> ./agent
 ```
 
-## Usage
+## Run
 
 ```bash
-./server/server -s 0.0.0.0 -p 8080
-./beacon -s 127.0.0.1 -p 8080
+./server/c2server -s 0.0.0.0 -p 4444
+./agent/agent -s <ip> -p 4444
 ```
 
 ## Console Commands
 
-| Command        | Action                        |
-|---------------|-------------------------------|
-| `help`         | Show command reference        |
-| `session`      | List registered agents        |
-| `use 1`        | Enter interactive shell       |
-| `back`         | Return to main console        |
-| `clear`        | Clear terminal                |
-| `exit`         | Kill agent + shutdown server  |
+```
+help              Show help
+sessions          List active agents          (alias: session)
+use 1             Enter interactive shell     (alias: interact 1)
+back              Return to main console
+kill              Kill connected agent
+clear             Clear screen
+exit / quit       Shutdown server
+```

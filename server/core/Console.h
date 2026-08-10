@@ -3,9 +3,8 @@
 
 #include "Session.h"
 
-int  ConsoleReadLine(char *Out, int Cap);
-int  ConsoleHandleInput(const char *Input, AgentSession *Session);
+int  ConsoleRead(char *Out, int Cap);
+int  ConsoleExec(const char *Line, Session *S);
 void ConsolePrintHelp(void);
-void ConsoleClear(void);
 
 #endif

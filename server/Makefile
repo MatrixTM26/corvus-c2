@@ -8,7 +8,7 @@ SRCS   = main.c \
          core/Console.c
 
 OBJS   = $(SRCS:.c=.o)
-TARGET = server
+TARGET = c2server
 
 all: $(TARGET)
 
@@ -18,15 +18,13 @@ $(TARGET): $(OBJS)
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-main.o:          main.c           core/Cipher.h core/Session.h core/Network.h core/Console.h
-core/Cipher.o:   core/Cipher.c    core/Cipher.h
-core/Session.o:  core/Session.c   core/Session.h
-core/Network.o:  core/Network.c   core/Network.h core/Cipher.h core/Session.h
-core/Console.o:  core/Console.c   core/Console.h core/Session.h
+main.o:         main.c          core/Cipher.h core/Session.h core/Network.h core/Console.h
+core/Cipher.o:  core/Cipher.c   core/Cipher.h
+core/Session.o: core/Session.c  core/Session.h
+core/Network.o: core/Network.c  core/Network.h core/Cipher.h core/Session.h
+core/Console.o: core/Console.c  core/Console.h core/Session.h
 
 clean:
 	rm -f $(OBJS) $(TARGET)
 
-rebuild: clean all
-
-.PHONY: all clean rebuild
+.PHONY: all clean

@@ -6,22 +6,22 @@
 #ifdef _WIN32
   #include <winsock2.h>
   #pragma comment(lib, "ws2_32.lib")
-  #define NetClose(S)      closesocket(S)
-  #define NetInvalid       INVALID_SOCKET
-  typedef SOCKET           NetSocket;
+  typedef SOCKET NetSock;
+  #define NetInvalid  INVALID_SOCKET
+  #define NetClose(s) closesocket(s)
 #else
   #include <arpa/inet.h>
   #include <sys/socket.h>
   #include <unistd.h>
-  #define NetClose(S)      close(S)
-  #define NetInvalid       (-1)
-  typedef int              NetSocket;
+  typedef int NetSock;
+  #define NetInvalid  (-1)
+  #define NetClose(s) close(s)
 #endif
 
-int       NetInit(void);
-void      NetCleanup(void);
-NetSocket NetCreateListener(const char *BindAddr, int Port);
-void      NetSetNonBlocking(NetSocket Sock);
-int       NetHandleBeacon(NetSocket Listener, AgentSession *Session);
+int     NetInit(void);
+void    NetShutdown(void);
+NetSock NetListen(const char *Addr, int Port);
+void    NetNonBlock(NetSock Sock);
+void    NetHandleBeacon(NetSock Listener, Session *S);
 
 #endif

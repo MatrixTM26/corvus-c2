@@ -2,52 +2,54 @@
 #include <string.h>
 #include <stdio.h>
 
-void SessionInit(AgentSession *S)
+void SessionInit(Session *S)
 {
     memset(S, 0, sizeof(*S));
 }
 
-void SessionRegister(AgentSession *S, const char *Addr)
+void SessionRegister(Session *S, const char *Addr)
 {
-    if (S->IsActive)
-        return;
+    int WasActive = S->Active;
+    S->Active = 1;
+    strncpy(S->Address, Addr, AddrSize - 1);
+    S->Address[AddrSize - 1] = '\0';
 
-    S->IsActive = 1;
-    strncpy(S->Address, Addr, AddrLen - 1);
-    S->Address[AddrLen - 1] = '\0';
-
-    if (S->InSession) {
-        printf("\n[*] Agent re-registered from %s\n", S->Address);
-        printf("C2Session[%s]> ", S->Address);
+    if (!WasActive) {
+        printf("\n[+] New agent registered: %s\n", S->Address);
+        if (S->Interactive)
+            printf("C2Session[%s]> ", S->Address);
+        else
+            printf("C2Main> ");
         fflush(stdout);
     }
 }
 
-void SessionQueueCommand(AgentSession *S, const char *Cmd)
+void SessionSendCommand(Session *S, const char *Cmd)
 {
-    strncpy(S->PendingCommand, Cmd, BufferSize - 1);
-    S->PendingCommand[BufferSize - 1] = '\0';
-    S->CommandPending = 1;
-    S->WaitingResult  = 0;
+    strncpy(S->Pending, Cmd, BufSize - 1);
+    S->Pending[BufSize - 1] = '\0';
+    S->HasPending = 1;
 }
 
-void SessionEnter(AgentSession *S)
+void SessionEnter(Session *S)
 {
-    S->InSession     = 1;
-    S->WaitingResult = 0;
-    printf("[*] Entering session with %s\n", S->Address);
-    printf("[*] Type 'back' to return to main console.\n");
+    S->Interactive = 1;
+    printf("[*] Entering session with %s — type 'back' to return.\n", S->Address);
     printf("C2Session[%s]> ", S->Address);
     fflush(stdout);
 }
 
-void SessionLeave(AgentSession *S)
+void SessionLeave(Session *S)
 {
-    S->InSession     = 0;
-    S->WaitingResult = 0;
+    S->Interactive = 0;
+    printf("C2Main> ");
+    fflush(stdout);
 }
 
-void SessionReset(AgentSession *S)
+void SessionKill(Session *S)
 {
-    memset(S, 0, sizeof(*S));
+    SessionSendCommand(S, "kill");
+    printf("[*] Kill command queued.\n");
+    S->Interactive = 0;
+    fflush(stdout);
 }

