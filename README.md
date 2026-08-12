@@ -28,4 +28,13 @@ clear             Clear screen
 exit / quit       Shutdown server
 ```
 
+## Contributors
+
+<div align="center">
+    <a href="https://github.com">
+        <img src="https://contrib.rocks" />
+    </a>
+</div>
+
+
 <p align="center">&copy; 2023-2026 MatrixTM26</p>
