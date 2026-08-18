@@ -18,7 +18,7 @@ echo "[*] Generating server cert..."
 openssl ecparam -genkey -name $CURVE -noout -out server.key
 openssl req -new -key server.key -out server.csr \
     -subj "/C=US/O=Internal/CN=c2server"
-cat > server_ext.cnf << 'EOF'
+cat >server_ext.cnf <<'EOF'
 [v3_req]
 subjectAltName = @alt_names
 keyUsage = digitalSignature, keyEncipherment
