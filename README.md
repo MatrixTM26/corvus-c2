@@ -28,4 +28,6 @@ clear             Clear screen
 exit / quit       Shutdown server
 ```
 
+---
+
 <p align="center">&copy; 2023-2026 MatrixTM26</p>
