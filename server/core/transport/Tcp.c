@@ -50,22 +50,21 @@ static void TcpDispatch(NetSock Conn, SessionPool *P, const char *PeerAddr) {
   Buf[N] = '\0';
   ApplyXor(Buf, (size_t)N);
 
-  int IsNew = 1;
-  AgentSession *S = NULL;
-
-  for (int I = 0; I < P->Count; I++) {
-    if (P->Slots[I].State == StateActive &&
-        strcmp(P->Slots[I].Address, PeerAddr) == 0) {
-      IsNew = 0;
-      S = &P->Slots[I];
-      S->LastSeen = time(NULL);
-      break;
-    }
-  }
-
-  S = PoolRegister(P, PeerAddr);
+  /*
+   * BUG FIX: Same IsNew logic error as in Tls.c.
+   * Original code searched for existing session, set IsNew=0 and S=slot,
+   * then unconditionally called PoolRegister() — overwriting S regardless.
+   * PoolNotifyConnect was then called based on a potentially stale IsNew.
+   *
+   * Fix: let PoolRegister() do the lookup (it's idempotent for existing
+   * addresses), and detect IsNew by whether the pool grew.
+   */
+  int PrevCount = P->Count;
+  AgentSession *S = PoolRegister(P, PeerAddr);
   if (!S)
     return;
+
+  int IsNew = (P->Count > PrevCount);
 
   if (IsNew)
     PoolNotifyConnect(P, S);

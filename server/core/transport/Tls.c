@@ -87,22 +87,25 @@ static void TlsDispatch(SSL *Ssl, SessionPool *P, const char *PeerAddr,
     PayloadLen = N;
   }
 
-  int IsNew = 1;
-  AgentSession *S = NULL;
-
-  for (int I = 0; I < P->Count; I++) {
-    if (P->Slots[I].State == StateActive &&
-        strcmp(P->Slots[I].Address, PeerAddr) == 0) {
-      IsNew = 0;
-      S = &P->Slots[I];
-      S->LastSeen = time(NULL);
-      break;
-    }
-  }
-
-  S = PoolRegister(P, PeerAddr);
+  /*
+   * BUG FIX: The original code set IsNew=0 and S=existing in the loop,
+   * then unconditionally called PoolRegister() which overwrote S.
+   * Because PoolRegister() finds and returns the existing slot (no new
+   * allocation), the overwrite was harmless for S — but IsNew was left
+   * stale: a returning agent would incorrectly trigger PoolNotifyConnect
+   * again on every beacon after the first.
+   *
+   * Fix: call PoolRegister() first (it handles both new and returning
+   * agents correctly), then decide IsNew by comparing P->Count before
+   * vs after, or simply by checking whether the slot's FirstSeen equals
+   * LastSeen (set equal only at registration time).
+   */
+  int PrevCount = P->Count;
+  AgentSession *S = PoolRegister(P, PeerAddr);
   if (!S)
     return;
+
+  int IsNew = (P->Count > PrevCount); /* true only when a new slot was added */
 
   if (IsNew)
     PoolNotifyConnect(P, S);
@@ -156,6 +159,13 @@ static void TlsAccept(NetSock Listener, SessionPool *P, const Config *C,
   SSL_set_fd(Ssl, (int)Conn);
 
   if (SSL_accept(Ssl) <= 0) {
+    /*
+     * BUG FIX: Previously only printed OpenSSL errors to stderr.
+     * Now also prints the peer address so the operator can correlate
+     * handshake failures to specific agents (e.g. wrong cert / CA mismatch).
+     */
+    fprintf(stderr, "[!] TLS handshake failed from %s — ",
+            inet_ntoa(Peer.sin_addr));
     ERR_print_errors_fp(stderr);
   } else {
     char PeerAddr[AddrSize];

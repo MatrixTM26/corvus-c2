@@ -1,14 +1,14 @@
-CC     = gcc
-CFLAGS = -Wall -Wextra -pedantic -std=c11 -O2
-TARGET = agent
+CC      = gcc
+CFLAGS  = -Wall -Wextra -std=c11 -O2
+TARGET  = agent
 
 all: $(TARGET)
 
-$(TARGET): agent.c
-	$(CC) $(CFLAGS) -o $@ $^
+$(TARGET):
+	$(CC) $(CFLAGS) -o $@ agent.c
 
-ssl: agent.c
-	$(CC) $(CFLAGS) -DHAVE_OPENSSL -o $(TARGET) $^ -lssl -lcrypto
+ssl:
+	$(CC) $(CFLAGS) -DHAVE_OPENSSL -o $(TARGET) agent.c -lssl -lcrypto
 
 clean:
 	rm -f $(TARGET)

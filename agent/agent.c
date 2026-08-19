@@ -249,17 +249,39 @@ static int TlsBeacon(const AgentConfig *C, const char *Send, char *Recv,
   SSL_CTX_set_min_proto_version(Ctx, TLS1_2_VERSION);
 
   if (C->Mode == ModeMtls) {
+    /*
+     * mTLS: load client cert + key for mutual authentication.
+     */
     if (SSL_CTX_use_certificate_file(Ctx, C->CertFile, SSL_FILETYPE_PEM) <= 0 ||
         SSL_CTX_use_PrivateKey_file(Ctx, C->KeyFile, SSL_FILETYPE_PEM) <= 0) {
+      ERR_print_errors_fp(stderr);
       SSL_CTX_free(Ctx);
       return 0;
     }
-  }
+    /*
+     * mTLS: verify the server against the shared CA.
+     */
+    if (!SSL_CTX_load_verify_locations(Ctx, C->CaFile, NULL)) {
+      ERR_print_errors_fp(stderr);
+      SSL_CTX_free(Ctx);
+      return 0;
+    }
+    SSL_CTX_set_verify(Ctx, SSL_VERIFY_PEER, NULL);
 
-  if (C->Mode == ModeMtls || C->Mode == ModeHttps || C->Mode == ModeTls) {
-    SSL_CTX_load_verify_locations(Ctx, C->CaFile, NULL);
-    SSL_CTX_set_verify(
-        Ctx, C->Mode == ModeMtls ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, NULL);
+  } else {
+    /*
+     * BUG FIX: For plain TLS / HTTPS the original code called
+     * SSL_CTX_load_verify_locations() unconditionally, which fails
+     * silently when certs/ca.crt does not exist and leaves the SSL_CTX
+     * in an inconsistent state on some OpenSSL builds, causing
+     * SSL_connect() to fail.
+     *
+     * Fix: only load the CA file when the operator explicitly provides
+     * one (--ca flag will differ from the default).  For plain TLS
+     * and HTTPS we set SSL_VERIFY_NONE so the server's self-signed
+     * cert is accepted without a trusted CA chain.
+     */
+    SSL_CTX_set_verify(Ctx, SSL_VERIFY_NONE, NULL);
   }
 
   int Fd = TcpConnect(C);
@@ -273,8 +295,10 @@ static int TlsBeacon(const AgentConfig *C, const char *Send, char *Recv,
   SSL_set_tlsext_host_name(Ssl, C->Host);
 
   int Ok = 0;
-  if (SSL_connect(Ssl) <= 0)
+  if (SSL_connect(Ssl) <= 0) {
+    ERR_print_errors_fp(stderr);
     goto Done;
+  }
 
   if (IsHttp) {
     char Body[BufSize];

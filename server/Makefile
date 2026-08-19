@@ -12,34 +12,25 @@ SRCS    = main.c \
           core/transport/Http.c \
           core/transport/Tls.c
 
-OBJS    = $(SRCS:.c=.o)
 TARGET  = c2server
 
+# --------------------------------------------------------------------------
+# Plain build (tcp + http only — no TLS)
+# --------------------------------------------------------------------------
 all: $(TARGET)
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+$(TARGET):
+	$(CC) $(CFLAGS) -o $@ $(SRCS)
 
-ssl: CFLAGS += -DHAVE_OPENSSL
-ssl: LDFLAGS += -lssl -lcrypto
-ssl: $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET) $^ $(LDFLAGS)
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-main.o:                    main.c core/Config.h core/Banner.h core/Session.h core/Network.h core/Console.h
-core/Config.o:             core/Config.c core/Config.h
-core/Banner.o:             core/Banner.c core/Banner.h core/Config.h
-core/Cipher.o:             core/Cipher.c core/Cipher.h
-core/Session.o:            core/Session.c core/Session.h
-core/Network.o:            core/Network.c core/Network.h
-core/Console.o:            core/Console.c core/Console.h core/Session.h core/Config.h
-core/transport/Tcp.o:      core/transport/Tcp.c core/transport/Tcp.h
-core/transport/Http.o:     core/transport/Http.c core/transport/Http.h
-core/transport/Tls.o:      core/transport/Tls.c core/transport/Tls.h
+# --------------------------------------------------------------------------
+# TLS build  (requires libssl-dev / openssl-devel)
+# Compiles every source file with -DHAVE_OPENSSL so the #ifdef guards are
+# active in ALL translation units, then links against OpenSSL.
+# --------------------------------------------------------------------------
+ssl:
+	$(CC) $(CFLAGS) -DHAVE_OPENSSL -o $(TARGET) $(SRCS) -lssl -lcrypto
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(TARGET) core/transport/*.o core/*.o *.o
 
 .PHONY: all ssl clean
