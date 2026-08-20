@@ -1,5 +1,5 @@
-#ifndef TCP_H
-#define TCP_H
+#ifndef TcpH
+#define TcpH
 
 #include "Session.h"
 #include "Config.h"

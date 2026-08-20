@@ -1,5 +1,5 @@
-#ifndef HTTP_H
-#define HTTP_H
+#ifndef HttpH
+#define HttpH
 
 #include "Cipher.h"
 #include "Config.h"

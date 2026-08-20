@@ -1,11 +1,11 @@
-#ifndef TLS_H
-#define TLS_H
+#ifndef TlsH
+#define TlsH
 
 #include "Config.h"
 #include "Session.h"
 #include "Tcp.h"
 
-#ifdef HAVE_OPENSSL
+#ifdef HaveOpenssl
     #include <openssl/ssl.h>
     #include <openssl/err.h>
 

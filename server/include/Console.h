@@ -1,5 +1,5 @@
-#ifndef CONSOLE_H
-#define CONSOLE_H
+#ifndef ConsoleH
+#define ConsoleH
 
 #include "Session.h"
 #include "Config.h"

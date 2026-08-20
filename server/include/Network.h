@@ -1,5 +1,5 @@
-#ifndef NETWORK_H
-#define NETWORK_H
+#ifndef NetworkH
+#define NetworkH
 
 #include "Config.h"
 #include "Session.h"
@@ -9,7 +9,7 @@
 
 typedef struct {
     NetSock Listener;
-#ifdef HAVE_OPENSSL
+#ifdef HaveOpenssl
     SSL_CTX *Ctx;
 #endif
 } NetHandle;

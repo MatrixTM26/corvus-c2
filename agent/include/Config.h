@@ -1,5 +1,5 @@
-#ifndef AGENT_CONFIG_H
-#define AGENT_CONFIG_H
+#ifndef AgentConfigH
+#define AgentConfigH
 
 #define BufSize    8192
 #define MaxUaLen   256

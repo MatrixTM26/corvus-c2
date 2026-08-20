@@ -1,5 +1,5 @@
-#ifndef EXEC_H
-#define EXEC_H
+#ifndef ExecH
+#define ExecH
 
 #include <stddef.h>
 

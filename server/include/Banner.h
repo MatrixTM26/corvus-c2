@@ -1,5 +1,5 @@
-#ifndef BANNER_H
-#define BANNER_H
+#ifndef BannerH
+#define BannerH
 
 #include "Config.h"
 

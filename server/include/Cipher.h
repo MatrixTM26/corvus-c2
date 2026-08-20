@@ -1,5 +1,5 @@
-#ifndef CIPHER_H
-#define CIPHER_H
+#ifndef CipherH
+#define CipherH
 
 #include <stddef.h>
 

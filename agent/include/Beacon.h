@@ -1,5 +1,5 @@
-#ifndef BEACON_H
-#define BEACON_H
+#ifndef BeaconH
+#define BeaconH
 
 #include "Config.h"
 

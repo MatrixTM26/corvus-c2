@@ -26,7 +26,7 @@ int NetStart(const Config *C, NetHandle *H)
 {
     memset(H, 0, sizeof(*H));
 
-#ifdef HAVE_OPENSSL
+#ifdef HaveOpenssl
     if (C->Mode >= ModeTls) {
         H->Ctx = TlsCreateCtx(C);
         if (!H->Ctx) { fprintf(stderr, "[!] TLS context init failed.\n"); return 0; }
@@ -45,7 +45,7 @@ int NetStart(const Config *C, NetHandle *H)
 void NetStop(NetHandle *H)
 {
     if (H->Listener != NetInvalid) NetClose(H->Listener);
-#ifdef HAVE_OPENSSL
+#ifdef HaveOpenssl
     if (H->Ctx) SSL_CTX_free(H->Ctx);
 #endif
 }
@@ -59,7 +59,7 @@ void NetDispatch(NetHandle *H, SessionPool *P, const Config *C)
         case ModeHttp:
             HttpHandleBeacon(H->Listener, P, C);
             break;
-#ifdef HAVE_OPENSSL
+#ifdef HaveOpenssl
         case ModeTls:
             TlsHandleBeacon(H->Listener, P, C, H->Ctx);
             break;

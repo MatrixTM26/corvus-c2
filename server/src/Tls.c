@@ -1,6 +1,6 @@
 typedef int TlsDummyType;
 
-#ifdef HAVE_OPENSSL
+#ifdef HaveOpenssl
 
 #include "../include/Tls.h"
 #include "../include/Cipher.h"

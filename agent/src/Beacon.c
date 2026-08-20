@@ -19,7 +19,7 @@
     #define SockClose(s) close(s)
 #endif
 
-#ifdef HAVE_OPENSSL
+#ifdef HaveOpenssl
     #include <openssl/ssl.h>
     #include <openssl/err.h>
 #endif
@@ -102,7 +102,7 @@ static int BeaconHttp(const AgentConfig *C, const char *Send, char *Recv)
     return 1;
 }
 
-#ifdef HAVE_OPENSSL
+#ifdef HaveOpenssl
 static SSL_CTX *TlsBuildCtx(const AgentConfig *C)
 {
     static int SslInit = 0;
@@ -206,7 +206,7 @@ int BeaconSend(const AgentConfig *C, const char *Payload, char *Response)
     switch (C->Mode) {
         case ModeTcp:   return BeaconTcp(C, Payload, Response);
         case ModeHttp:  return BeaconHttp(C, Payload, Response);
-#ifdef HAVE_OPENSSL
+#ifdef HaveOpenssl
         case ModeTls:   return BeaconTls(C, Payload, Response, 0);
         case ModeHttps: return BeaconTls(C, Payload, Response, 1);
         case ModeMtls:  return BeaconTls(C, Payload, Response, 0);

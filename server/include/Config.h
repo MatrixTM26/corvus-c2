@@ -1,5 +1,5 @@
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef ConfigH
+#define ConfigH
 
 #define BufSize      8192
 #define AddrSize     128

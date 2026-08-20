@@ -1,5 +1,5 @@
-#ifndef SESSION_H
-#define SESSION_H
+#ifndef SessionH
+#define SessionH
 
 #include "Config.h"
 #include <time.h>
