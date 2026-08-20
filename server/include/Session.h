@@ -5,9 +5,9 @@
 #include <time.h>
 
 typedef enum {
-    StateIdle    = 0,
-    StateActive  = 1,
-    StateDead    = 2
+    StateIdle   = 0,
+    StateActive = 1,
+    StateDead   = 2
 } SessionState;
 
 typedef struct {

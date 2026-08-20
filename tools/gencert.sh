@@ -1,63 +1,114 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-OUTDIR="${1:-certs}"
+CERTS_DIR="$(cd "$(dirname "$0")/.." && pwd)/certs"
 DAYS=825
 BITS=4096
-CURVE=prime256v1
 
-mkdir -p "$OUTDIR"
-cd "$OUTDIR"
+usage() {
+    echo "Usage: $0 [--agents <n>] [--days <days>] [--bits <bits>] [--out <dir>]"
+    echo ""
+    echo "  --agents <n>   Number of agent cert pairs to generate (default: 1)"
+    echo "  --days   <n>   Certificate validity in days              (default: 825)"
+    echo "  --bits   <n>   RSA key size                              (default: 4096)"
+    echo "  --out    <dir> Output base directory                     (default: <root>/certs)"
+    echo ""
+    echo "Output layout:"
+    echo "  <out>/ca/          ca.key  ca.crt"
+    echo "  <out>/server/      server.key  server.crt  ca.crt"
+    echo "  <out>/agent-N/     agent.key   agent.crt   ca.crt  (per agent)"
+    exit 0
+}
 
-echo "[*] Generating CA..."
-openssl ecparam -genkey -name $CURVE -noout -out ca.key
-openssl req -new -x509 -days $DAYS -key ca.key -out ca.crt \
-    -subj "/C=US/O=Internal/CN=C2-CA"
+AGENTS=1
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --agents) AGENTS="$2"; shift 2 ;;
+        --days)   DAYS="$2";   shift 2 ;;
+        --bits)   BITS="$2";   shift 2 ;;
+        --out)    CERTS_DIR="$2"; shift 2 ;;
+        --help|-h) usage ;;
+        *) echo "[!] Unknown option: $1"; usage ;;
+    esac
+done
 
-echo "[*] Generating server cert..."
-openssl ecparam -genkey -name $CURVE -noout -out server.key
-openssl req -new -key server.key -out server.csr \
-    -subj "/C=US/O=Internal/CN=c2server"
-cat >server_ext.cnf <<'EOF'
-[v3_req]
-subjectAltName = @alt_names
-keyUsage = digitalSignature, keyEncipherment
-extendedKeyUsage = serverAuth
-[alt_names]
-DNS.1 = localhost
-IP.1  = 127.0.0.1
-EOF
-openssl x509 -req -days $DAYS -in server.csr -CA ca.crt -CAkey ca.key \
-    -CAcreateserial -out server.crt -extensions v3_req -extfile server_ext.cnf
-rm -f server.csr server_ext.cnf
+echo "[*] Output directory : $CERTS_DIR"
+echo "[*] Validity         : $DAYS days"
+echo "[*] Key size         : $BITS bits"
+echo "[*] Agent count      : $AGENTS"
+echo ""
 
-echo "[*] Generating agent cert (for mTLS)..."
-openssl ecparam -genkey -name $CURVE -noout -out agent.key
-openssl req -new -key agent.key -out agent.csr \
-    -subj "/C=US/O=Internal/CN=c2agent"
-openssl x509 -req -days $DAYS -in agent.csr -CA ca.crt -CAkey ca.key \
-    -CAcreateserial -out agent.crt \
-    -extensions v3_req -extfile <(printf '[v3_req]\nextendedKeyUsage=clientAuth\n')
-rm -f agent.csr
+CA_DIR="$CERTS_DIR/ca"
+SERVER_DIR="$CERTS_DIR/server"
 
-echo "[*] Verifying chain..."
-openssl verify -CAfile ca.crt server.crt
-openssl verify -CAfile ca.crt agent.crt
+mkdir -p "$CA_DIR" "$SERVER_DIR"
 
-chmod 600 *.key
+echo "[*] Generating CA key and certificate..."
+openssl genrsa -out "$CA_DIR/ca.key" "$BITS" 2>/dev/null
+openssl req -new -x509 -days "$DAYS" \
+    -key "$CA_DIR/ca.key" \
+    -out "$CA_DIR/ca.crt" \
+    -subj "/CN=C2FrameworkCA/O=RedTeamLab/C=ID" 2>/dev/null
+echo "    $CA_DIR/ca.key"
+echo "    $CA_DIR/ca.crt"
 
 echo ""
-echo "[+] Certs written to: $(pwd)"
-echo "    ca.crt      — CA certificate"
-echo "    server.crt  — server certificate"
-echo "    server.key  — server private key"
-echo "    agent.crt   — agent certificate (mTLS)"
-echo "    agent.key   — agent private key (mTLS)"
+echo "[*] Generating server certificate..."
+openssl genrsa -out "$SERVER_DIR/server.key" "$BITS" 2>/dev/null
+openssl req -new \
+    -key "$SERVER_DIR/server.key" \
+    -out "$SERVER_DIR/server.csr" \
+    -subj "/CN=C2Server/O=RedTeamLab/C=ID" 2>/dev/null
+openssl x509 -req -days "$DAYS" \
+    -in  "$SERVER_DIR/server.csr" \
+    -CA  "$CA_DIR/ca.crt" \
+    -CAkey "$CA_DIR/ca.key" \
+    -CAcreateserial \
+    -out "$SERVER_DIR/server.crt" 2>/dev/null
+cp "$CA_DIR/ca.crt" "$SERVER_DIR/ca.crt"
+rm -f "$SERVER_DIR/server.csr"
+echo "    $SERVER_DIR/server.key"
+echo "    $SERVER_DIR/server.crt"
+echo "    $SERVER_DIR/ca.crt"
+
+for I in $(seq 1 "$AGENTS"); do
+    AGENT_DIR="$CERTS_DIR/agent-$I"
+    mkdir -p "$AGENT_DIR"
+    echo ""
+    echo "[*] Generating agent-$I certificate..."
+    openssl genrsa -out "$AGENT_DIR/agent.key" "$BITS" 2>/dev/null
+    openssl req -new \
+        -key "$AGENT_DIR/agent.key" \
+        -out "$AGENT_DIR/agent.csr" \
+        -subj "/CN=C2Agent$I/O=RedTeamLab/C=ID" 2>/dev/null
+    openssl x509 -req -days "$DAYS" \
+        -in  "$AGENT_DIR/agent.csr" \
+        -CA  "$CA_DIR/ca.crt" \
+        -CAkey "$CA_DIR/ca.key" \
+        -CAcreateserial \
+        -out "$AGENT_DIR/agent.crt" 2>/dev/null
+    cp "$CA_DIR/ca.crt" "$AGENT_DIR/ca.crt"
+    rm -f "$AGENT_DIR/agent.csr"
+    echo "    $AGENT_DIR/agent.key"
+    echo "    $AGENT_DIR/agent.crt"
+    echo "    $AGENT_DIR/ca.crt"
+done
+
 echo ""
-echo "Usage (server):"
-echo "  ./c2server -s 0.0.0.0 -p 4444 -m tls"
-echo "  ./c2server -s 0.0.0.0 -p 4444 -m https"
-echo "  ./c2server -s 0.0.0.0 -p 4444 -m mtls"
+echo "[+] Done."
 echo ""
-echo "Usage (agent mTLS):"
-echo "  ./agent -s <host> -p 4444 -m mtls --cert certs/agent.crt --key certs/agent.key --ca certs/ca.crt"
+echo "    Run server (mTLS):"
+echo "    ./build/server/c2server -s 0.0.0.0 -p 4444 -m mtls \\"
+echo "      --cert $SERVER_DIR/server.crt \\"
+echo "      --key  $SERVER_DIR/server.key \\"
+echo "      --ca   $SERVER_DIR/ca.crt"
+echo ""
+for I in $(seq 1 "$AGENTS"); do
+    AGENT_DIR="$CERTS_DIR/agent-$I"
+    echo "    Run agent-$I (mTLS):"
+    echo "    ./build/agent/agent -s <SERVER_IP> -p 4444 -m mtls \\"
+    echo "      --cert $AGENT_DIR/agent.crt \\"
+    echo "      --key  $AGENT_DIR/agent.key \\"
+    echo "      --ca   $AGENT_DIR/ca.crt"
+    echo ""
+done

@@ -1,12 +1,16 @@
-#include "Network.h"
+#include "../include/Network.h"
 #include <stdio.h>
 #include <string.h>
+
+#ifdef _WIN32
+    #include <winsock2.h>
+#endif
 
 int NetInit(void)
 {
 #ifdef _WIN32
-    WSADATA Wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &Wsa) != 0) return 0;
+    WSADATA W;
+    return WSAStartup(MAKEWORD(2, 2), &W) == 0;
 #endif
     return 1;
 }
@@ -21,24 +25,11 @@ void NetShutdown(void)
 int NetStart(const Config *C, NetHandle *H)
 {
     memset(H, 0, sizeof(*H));
-    H->Listener = NetInvalid;
 
 #ifdef HAVE_OPENSSL
-    H->Ctx = NULL;
-    if (C->Mode == ModeTls || C->Mode == ModeHttps || C->Mode == ModeMtls) {
-        SSL_library_init();
-        OpenSSL_add_all_algorithms();
-        SSL_load_error_strings();
+    if (C->Mode >= ModeTls) {
         H->Ctx = TlsCreateCtx(C);
-        if (!H->Ctx) {
-            fprintf(stderr, "[!] TLS context init failed.\n");
-            return 0;
-        }
-    }
-#else
-    if (C->Mode == ModeTls || C->Mode == ModeHttps || C->Mode == ModeMtls) {
-        fprintf(stderr, "[!] Built without OpenSSL — recompile with -DHAVE_OPENSSL -lssl -lcrypto\n");
-        return 0;
+        if (!H->Ctx) { fprintf(stderr, "[!] TLS context init failed.\n"); return 0; }
     }
 #endif
 
@@ -47,18 +38,15 @@ int NetStart(const Config *C, NetHandle *H)
         fprintf(stderr, "[!] Failed to bind %s:%d\n", C->BindAddr, C->Port);
         return 0;
     }
-
     TcpNonBlock(H->Listener);
     return 1;
 }
 
 void NetStop(NetHandle *H)
 {
-    if (H->Listener != NetInvalid)
-        NetClose(H->Listener);
+    if (H->Listener != NetInvalid) NetClose(H->Listener);
 #ifdef HAVE_OPENSSL
-    if (H->Ctx)
-        SSL_CTX_free(H->Ctx);
+    if (H->Ctx) SSL_CTX_free(H->Ctx);
 #endif
 }
 
@@ -72,11 +60,11 @@ void NetDispatch(NetHandle *H, SessionPool *P, const Config *C)
             HttpHandleBeacon(H->Listener, P, C);
             break;
 #ifdef HAVE_OPENSSL
-        case ModeHttps:
-            HttpsHandleBeacon(H->Listener, P, C, H->Ctx);
-            break;
         case ModeTls:
             TlsHandleBeacon(H->Listener, P, C, H->Ctx);
+            break;
+        case ModeHttps:
+            HttpsHandleBeacon(H->Listener, P, C, H->Ctx);
             break;
         case ModeMtls:
             TlsHandleBeacon(H->Listener, P, C, H->Ctx);

@@ -1,11 +1,11 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define BufSize       8192
-#define AddrSize      128
-#define MaxSessions   64
-#define MaxUaLen      256
-#define MaxPathLen    512
+#define BufSize      8192
+#define AddrSize     128
+#define MaxSessions  64
+#define MaxUaLen     256
+#define MaxPathLen   512
 
 typedef enum {
     ModeTcp   = 0,

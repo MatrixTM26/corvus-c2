@@ -1,4 +1,4 @@
-#include "Banner.h"
+#include "../include/Banner.h"
 #include <stdio.h>
 
 void BannerPrint(const Config *C)

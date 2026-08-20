@@ -3,9 +3,9 @@
 
 #include "Config.h"
 #include "Session.h"
-#include "transport/Tcp.h"
-#include "transport/Http.h"
-#include "transport/Tls.h"
+#include "Tcp.h"
+#include "Http.h"
+#include "Tls.h"
 
 typedef struct {
     NetSock Listener;
