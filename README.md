@@ -127,23 +127,34 @@ make certs AGENTS=2
 ## Console Commands
 
 ```
-help              Show help
-sessions          List active agents
-use <id>          Enter interactive shell with agent   (alias: interact <id>)
-kill <id>         Queue kill for specific agent
-kill all          Queue kill for all agents
-info              Show server configuration
-clear             Clear screen
-exit / quit       Shutdown server
+help                     Show help
+sessions                 List all active sessions
+use <id>                 Enter interactive shell with agent   (alias: interact <id>)
+exec <id> <cmd>          Execute command on specific agent without entering session
+execall <cmd>            Execute command on all active agents simultaneously
+kill <id>                Queue kill for specific agent
+kill all                 Queue kill for all agents
+info                     Show server configuration
+clear                    Clear screen
+exit / quit              Shutdown server
 ```
 
 **Inside a session:**
 
 ```
-<command>         Execute shell command on agent
-back              Return to server console
-kill              Kill this session
-clear             Clear screen
+<command>                Execute shell command on agent
+back                     Return to server console
+kill                     Kill this session
+clear                    Clear screen
+```
+
+**Examples:**
+
+```bash
+exec 2 whoami            # run whoami on session-2 only
+exec 3 cat /etc/passwd   # run on session-3 only
+execall id               # run id on every connected agent
+execall uname -a         # run uname on all agents at once
 ```
 
 ## Legal

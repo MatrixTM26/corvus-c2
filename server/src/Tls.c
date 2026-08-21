@@ -39,7 +39,7 @@ SSL_CTX *TlsCreateCtx(const Config *C)
     return Ctx;
 }
 
-static void TlsDispatch(SSL *Ssl, SessionPool *P, const char *PeerAddr,
+static void TlsDispatch(SSL *Ssl, SessionPool *P, const char *PeerAddr, int SrcPort,
                         int IsHttp, const Config *C)
 {
     char Raw[BufSize] = {0};
@@ -81,7 +81,7 @@ static void TlsDispatch(SSL *Ssl, SessionPool *P, const char *PeerAddr,
     }
 
     int PrevCount   = P->Count;
-    AgentSession *S = PoolRegister(P, PeerAddr);
+    AgentSession *S = PoolRegister(P, PeerAddr, SrcPort);
     if (!S) return;
     int IsNew = (P->Count > PrevCount);
     if (IsNew) PoolNotifyConnect(P, S);
@@ -137,7 +137,8 @@ static void TlsAccept(NetSock Listener, SessionPool *P, const Config *C,
     } else {
         char PeerAddr[AddrSize];
         strncpy(PeerAddr, inet_ntoa(Peer.sin_addr), AddrSize - 1);
-        TlsDispatch(Ssl, P, PeerAddr, IsHttp, C);
+        int SrcPort = (int)ntohs(Peer.sin_port);
+        TlsDispatch(Ssl, P, PeerAddr, SrcPort, IsHttp, C);
     }
 
     SSL_shutdown(Ssl);
