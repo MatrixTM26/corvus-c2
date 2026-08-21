@@ -13,6 +13,7 @@
 #endif
 
 #include "../include/Config.h"
+#include "../include/Identity.h"
 #include "../include/Beacon.h"
 #include "../include/Exec.h"
 
@@ -31,13 +32,16 @@ int main(int Argc, char *Argv[])
     AgentConfigDefaults(&C);
     AgentConfigParse(Argc, Argv, &C);
 
+    char Uuid[UuidLen];
+    IdentityGenerate(Uuid);
+
     char Msg[BufSize]  = "Standby";
     char Resp[BufSize] = {0};
 
     while (1) {
         memset(Resp, 0, BufSize);
 
-        if (!BeaconSend(&C, Msg, Resp)) {
+        if (!BeaconSend(&C, Uuid, Msg, Resp)) {
             strncpy(Msg, "Standby", BufSize - 1);
             SleepMs(Jitter(C.BeaconMs * 2, C.JitterPct));
             continue;

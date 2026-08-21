@@ -21,9 +21,10 @@ SRVSRCS = $(SRVDIR)/src/Main.c     \
           $(SRVDIR)/src/Http.c     \
           $(SRVDIR)/src/Tls.c
 
-AGNTSRCS = $(AGNTDIR)/src/Main.c   \
-           $(AGNTDIR)/src/Config.c  \
-           $(AGNTDIR)/src/Beacon.c  \
+AGNTSRCS = $(AGNTDIR)/src/Main.c    \
+           $(AGNTDIR)/src/Config.c   \
+           $(AGNTDIR)/src/Identity.c \
+           $(AGNTDIR)/src/Beacon.c   \
            $(AGNTDIR)/src/Exec.c
 
 SRVOBJDIR  = $(BLDDIR)/server

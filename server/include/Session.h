@@ -4,6 +4,8 @@
 #include "Config.h"
 #include <time.h>
 
+#define UuidLen 37
+
 typedef enum {
     StateIdle   = 0,
     StateActive = 1,
@@ -13,8 +15,8 @@ typedef enum {
 typedef struct {
     int          Id;
     SessionState State;
+    char         Uuid[UuidLen];
     char         Address[AddrSize];
-    char         Peer[AddrSize];
     time_t       FirstSeen;
     time_t       LastSeen;
     int          HasPending;
@@ -31,7 +33,7 @@ typedef struct {
 } SessionPool;
 
 void          PoolInit(SessionPool *P);
-AgentSession *PoolRegister(SessionPool *P, const char *Ip, int SrcPort);
+AgentSession *PoolRegister(SessionPool *P, const char *Uuid, const char *Ip);
 AgentSession *PoolById(SessionPool *P, int Id);
 AgentSession *PoolActive(SessionPool *P);
 void          PoolList(SessionPool *P);
@@ -43,5 +45,8 @@ void          PoolExec(SessionPool *P, int Id, const char *Cmd);
 void          PoolExecAll(SessionPool *P, const char *Cmd);
 void          PoolNotifyConnect(SessionPool *P, AgentSession *S);
 void          PoolNotifyOutput(SessionPool *P, AgentSession *S);
+
+int           FrameParse(const char *Raw, int RawLen,
+                         char *UuidOut, char *PayloadOut, int *PayloadLen);
 
 #endif
