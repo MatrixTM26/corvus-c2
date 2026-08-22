@@ -34,7 +34,7 @@ void ConsolePrintHelp(void)
     printf("  %s%-32s%s %s\n", ColYellow, "help",                    ColReset, "Show this help");
     printf("  %s%-32s%s %s\n", ColYellow, "sessions",                ColReset, "List all active sessions");
     printf("  %s%-32s%s %s\n", ColYellow, "use <id>",                ColReset, "Enter interactive shell with agent");
-    printf("  %s%-32s%s %s\n", ColYellow, "exec <id> <cmd>",         ColReset, "Execute command on specific agent");
+    printf("  %s%-32s%s %s\n", ColYellow, "exec <id,all> <cmd>",         ColReset, "Execute command on agent(s) — id or all");
     printf("  %s%-32s%s %s\n", ColYellow, "execall <id,id,all> <cmd>",ColReset,"Execute command on target agents");
     printf("  %s%-32s%s %s\n", ColYellow, "kill <id>",               ColReset, "Kill a specific agent session");
     printf("  %s%-32s%s %s\n", ColYellow, "kill all",                ColReset, "Kill all active sessions");
@@ -53,7 +53,8 @@ void ConsolePrintHelp(void)
     printf("\n");
 
     printf("  %sExamples%s\n", ColWhite, ColReset);
-    printf("  %sexec 2 whoami%s\n",            ColCyan, ColReset);
+    printf("  %sexec 2 whoami%s\n",             ColCyan, ColReset);
+    printf("  %sexec all id%s\n",               ColCyan, ColReset);
     printf("  %sexecall 1,2,3 uname -a%s\n",   ColCyan, ColReset);
     printf("  %sexecall all id%s\n",            ColCyan, ColReset);
     printf("  %sexport logs /tmp/all.txt%s\n",  ColCyan, ColReset);
@@ -145,12 +146,16 @@ int ConsoleExec(const char *Line, SessionPool *P, const Config *C, LogStore *L)
 
     } else if (!strncmp(Line, "exec ", 5)) {
         const char *After = SkipSpaces(Line + 5);
-        int Id = atoi(After);
-        const char *Cmd = SkipSpaces(SkipToken(After));
-        if (Id <= 0 || !strlen(Cmd))
-            Msg(L, LogError, "Usage: exec <id> <command>");
-        else
-            PoolExec(P, Id, Cmd);
+        const char *Cmd   = SkipSpaces(SkipToken(After));
+        if (!strlen(Cmd)) {
+            Msg(L, LogError, "Usage: exec <id,all> <command>");
+        } else if (!strncmp(After, "all", 3) && (After[3] == ' ' || After[3] == '\0')) {
+            PoolExecAll(P, "all", Cmd);
+        } else {
+            int Id = atoi(After);
+            if (Id <= 0) Msg(L, LogError, "Usage: exec <id,all> <command>");
+            else         PoolExec(P, Id, Cmd);
+        }
         return 1;
 
     } else if (!strncmp(Line, "execall ", 8)) {

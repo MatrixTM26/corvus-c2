@@ -34,7 +34,7 @@ AGNTOBJDIR = $(BLDDIR)/agent
 SRVOBJS  = $(patsubst $(SRVDIR)/src/%.c,  $(SRVOBJDIR)/%.o,  $(SRVSRCS))
 AGNTOBJS = $(patsubst $(AGNTDIR)/src/%.c, $(AGNTOBJDIR)/%.o, $(AGNTSRCS))
 
-SRVBIN   = $(SRVOBJDIR)/c2server
+SRVBIN   = $(SRVOBJDIR)/corvus
 AGNTBIN  = $(AGNTOBJDIR)/agent
 
 AGENTS  ?= 1
@@ -102,7 +102,7 @@ help:
 	@echo ""
 	@echo "  Run (mTLS)"
 	@echo "  ----------"
-	@echo "  ./build/server/c2server -s 0.0.0.0 -p 4444 -m mtls \\"
+	@echo "  ./build/server/corvus -s 0.0.0.0 -p 4444 -m mtls \\"
 	@echo "    --cert certs/server/server.crt \\"
 	@echo "    --key  certs/server/server.key \\"
 	@echo "    --ca   certs/server/ca.crt"

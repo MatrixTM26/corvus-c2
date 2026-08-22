@@ -1,4 +1,4 @@
-# C2 Framework
+# Corvus
 
 A lightweight command and control framework written in C, supporting multiple transport modes including raw TCP, HTTP, TLS, HTTPS, and mutual TLS (mTLS).
 
@@ -41,7 +41,7 @@ certs/
 ## Server
 
 ```bash
-./build/server/c2server -s <bind> -p <port> -m <mode> [options]
+./build/server/corvus -s <bind> -p <port> -m <mode> [options]
 ```
 
 | Flag | Alias | Description | Default |
@@ -90,20 +90,20 @@ certs/
 
 **TCP**
 ```bash
-./build/server/c2server -s 0.0.0.0 -p 4444 -m tcp
+./build/server/corvus -s 0.0.0.0 -p 4444 -m tcp
 ./build/agent/agent     -s 10.0.0.1 -p 4444 -m tcp
 ```
 
 **HTTP**
 ```bash
-./build/server/c2server -s 0.0.0.0 -p 8080 -m http --path /cdn/update
+./build/server/corvus -s 0.0.0.0 -p 8080 -m http --path /cdn/update
 ./build/agent/agent     -s 10.0.0.1 -p 8080 -m http --path /cdn/update
 ```
 
 **TLS**
 ```bash
 make certs
-./build/server/c2server -s 0.0.0.0 -p 443 -m tls \
+./build/server/corvus -s 0.0.0.0 -p 443 -m tls \
   --cert certs/server/server.crt \
   --key  certs/server/server.key
 
@@ -113,7 +113,7 @@ make certs
 **mTLS**
 ```bash
 make certs AGENTS=2
-./build/server/c2server -s 0.0.0.0 -p 4444 -m mtls \
+./build/server/corvus -s 0.0.0.0 -p 4444 -m mtls \
   --cert certs/server/server.crt \
   --key  certs/server/server.key \
   --ca   certs/server/ca.crt

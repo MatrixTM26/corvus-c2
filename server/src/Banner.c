@@ -20,7 +20,7 @@ void BannerPrint(const Config *C)
     printf("   ╚██████╗███████╗    ██║     ██║  ██║██║  ██║\n");
     printf("    ╚═════╝╚══════╝    ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝\n");
     printf("%s", ColReset);
-    printf("   %sC2 Framework%s  %sFor authorized security testing only%s\n",
+    printf("   %sCorvus%s  %sFor authorized security testing only%s\n",
            ColWhite, ColReset, ColGray, ColReset);
     printf("\n");
 
