@@ -14,6 +14,7 @@ SRVSRCS = $(SRVDIR)/src/Main.c     \
           $(SRVDIR)/src/Config.c   \
           $(SRVDIR)/src/Banner.c   \
           $(SRVDIR)/src/Cipher.c   \
+          $(SRVDIR)/src/Log.c      \
           $(SRVDIR)/src/Session.c  \
           $(SRVDIR)/src/Console.c  \
           $(SRVDIR)/src/Network.c  \

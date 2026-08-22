@@ -2,6 +2,7 @@
 #define SessionH
 
 #include "Config.h"
+#include "Log.h"
 #include <time.h>
 
 #define UuidLen 37
@@ -30,9 +31,10 @@ typedef struct {
     int          NextId;
     int          Interactive;
     int          ActiveId;
+    LogStore    *Log;
 } SessionPool;
 
-void          PoolInit(SessionPool *P);
+void          PoolInit(SessionPool *P, LogStore *L);
 AgentSession *PoolRegister(SessionPool *P, const char *Uuid, const char *Ip);
 AgentSession *PoolById(SessionPool *P, int Id);
 AgentSession *PoolActive(SessionPool *P);
@@ -42,7 +44,7 @@ void          PoolEnter(SessionPool *P, int Id);
 void          PoolLeave(SessionPool *P);
 void          PoolQueueCommand(AgentSession *S, const char *Cmd);
 void          PoolExec(SessionPool *P, int Id, const char *Cmd);
-void          PoolExecAll(SessionPool *P, const char *Cmd);
+void          PoolExecAll(SessionPool *P, const char *Targets, const char *Cmd);
 void          PoolNotifyConnect(SessionPool *P, AgentSession *S);
 void          PoolNotifyOutput(SessionPool *P, AgentSession *S);
 

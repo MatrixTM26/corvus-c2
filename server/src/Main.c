@@ -12,20 +12,16 @@
 #include "../include/Banner.h"
 #include "../include/Config.h"
 #include "../include/Console.h"
+#include "../include/Log.h"
 #include "../include/Network.h"
 #include "../include/Session.h"
 
 int main(int Argc, char *Argv[])
 {
     if (Argc < 2) {
-        fprintf(stderr, "Usage: %s -s <host> -p <port> -m <tcp|http|https|tls|mtls> [options]\n", Argv[0]);
-        fprintf(stderr, "  --cert <file>   TLS certificate  (default: certs/server/server.crt)\n");
-        fprintf(stderr, "  --key  <file>   TLS private key  (default: certs/server/server.key)\n");
-        fprintf(stderr, "  --ca   <file>   CA cert for mTLS (default: certs/server/ca.crt)\n");
-        fprintf(stderr, "  --path <path>   HTTP beacon path (default: /update)\n");
-        fprintf(stderr, "  --ua   <str>    User-Agent to match\n");
-        fprintf(stderr, "  --beacon <ms>   Beacon interval  (default: 3000)\n");
-        fprintf(stderr, "  --jitter <pct>  Jitter percent   (default: 15)\n");
+        fprintf(stderr, "Usage: %s -s <host> -p <port> -m <mode> [options]\n", Argv[0]);
+        fprintf(stderr, "  -m  tcp | http | https | tls | mtls\n");
+        fprintf(stderr, "  Run with --help for full options.\n");
         return 1;
     }
 
@@ -33,15 +29,21 @@ int main(int Argc, char *Argv[])
     ConfigDefaults(&C);
     if (!ConfigParse(Argc, Argv, &C)) return 1;
 
-    if (!NetInit()) { fprintf(stderr, "[!] Network init failed.\n"); return 1; }
+    if (!NetInit()) { fprintf(stderr, "[error] Network init failed.\n"); return 1; }
 
     NetHandle H;
     if (!NetStart(&C, &H)) { NetShutdown(); return 1; }
 
+    LogStore L;
+    LogInit(&L);
+
     BannerPrint(&C);
 
     SessionPool Pool;
-    PoolInit(&Pool);
+    PoolInit(&Pool, &L);
+
+    Msg(&L, LogInfo, "Listener started on %s:%d [%s]",
+        C.BindAddr, C.Port, ConfigModeName(C.Mode));
 
     printf("server ~$ ");
     fflush(stdout);
@@ -67,7 +69,7 @@ int main(int Argc, char *Argv[])
         if (FD_ISSET(StdinFd, &Fds)) {
             char Line[BufSize] = {0};
             if (!ConsoleRead(Line, sizeof(Line))) continue;
-            if (!ConsoleExec(Line, &Pool, &C)) break;
+            if (!ConsoleExec(Line, &Pool, &C, &L)) break;
         }
     }
 
