@@ -213,14 +213,8 @@ void PoolExecAll(SessionPool *P, const char *Targets, const char *Cmd)
 
 void PoolNotifyConnect(SessionPool *P, AgentSession *S)
 {
-    char LogBuf[LogMsgLen];
-    snprintf(LogBuf, sizeof(LogBuf), "session-%d connected: %s (%s)",
-             S->Id, S->Address, S->Uuid);
-    LogAdd(P->Log, LogInfo, S->Id, LogBuf);
-
-    printf("\r\033[K%s[%sinfo%s]%s session-%d connected: %s%s\n",
-           ColWhite, "\033[1;34m", ColWhite, ColReset,
-           S->Id, S->Address, ColReset);
+    Msg(P->Log, LogInfo, "session-%d connected: %s", S->Id, S->Address);
+    LogAdd(P->Log, LogInfo, S->Id, S->Uuid);
     ReprintPrompt(P);
 }
 
@@ -233,7 +227,15 @@ void PoolNotifyOutput(SessionPool *P, AgentSession *S)
     snprintf(LogBuf, sizeof(LogBuf), "[session-%d output] %s", S->Id, OutSnip);
     LogAdd(P->Log, LogOutput, S->Id, LogBuf);
 
-    printf("\r\033[K%s[session-%d | %s]%s\n%s\n",
-           ColCyan, S->Id, S->Address, ColReset, S->LastOutput);
+    char Ts[20];
+    time_t Now = time(NULL);
+    struct tm *Tm = localtime(&Now);
+    strftime(Ts, sizeof(Ts), "%H:%M:%S", Tm);
+
+    printf("\r\033[K%s%s%s [%ssession-%d%s | %s] output\n%s\n",
+           ColGray, Ts, ColReset,
+           ColCyan, S->Id, ColReset,
+           S->Address,
+           S->LastOutput);
     ReprintPrompt(P);
 }
