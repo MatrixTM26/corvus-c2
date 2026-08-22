@@ -13,34 +13,34 @@ void BannerPrint(const Config *C)
 {
     printf("\n");
     printf("%s", ColRed);
-    printf("    ██████╗██████╗     ███████╗██████╗  █████╗\n");
-    printf("   ██╔════╝╚════██╗    ██╔════╝██╔══██╗██╔══██╗\n");
-    printf("   ██║      █████╔╝    █████╗  ██████╔╝███████║\n");
-    printf("   ██║     ██╔═══╝     ██╔══╝  ██╔══██╗██╔══██║\n");
-    printf("   ╚██████╗███████╗    ██║     ██║  ██║██║  ██║\n");
-    printf("    ╚═════╝╚══════╝    ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝\n");
-    printf("%s", ColReset);
-    printf("   %sCorvus%s  %sFor authorized security testing only%s\n",
-           ColWhite, ColReset, ColGray, ColReset);
-    printf("\n");
+    printf("    ██████╗ ██████╗ ██████╗ ██╗   ██╗██╗   ██╗███████╗\n");
+    printf("   ██╔════╝██╔═══██╗██╔══██╗██║   ██║██║   ██║██╔════╝\n");
+    printf("   ██║     ██║   ██║██████╔╝██║   ██║██║   ██║███████╗\n");
+    printf("   ██║     ██║   ██║██╔══██╗╚██╗ ██╔╝██║   ██║╚════██║\n");
+    printf("   ╚██████╗╚██████╔╝██║  ██║ ╚████╔╝ ╚██████╔╝███████║\n");
+    printf("    ╚═════╝ ╚═════╝ ╚═╝  ╚═╝  ╚═══╝   ╚═════╝ ╚══════╝\n");
+    printf("%s\n", ColReset);
 
-    printf("   %s┌─ Listener ──────────────────────────────────┐%s\n", ColGray, ColReset);
-    printf("   %s│%s  mode    %s%-8s%s  bind  %s%s:%d%s\n",
-           ColGray, ColReset,
-           ColCyan,  ConfigModeName(C->Mode), ColReset,
+    printf("   %smode%s    %s%s%s    %sbind%s  %s%s:%d%s\n",
+           ColGray,   ColReset,
+           ColCyan,   ConfigModeName(C->Mode), ColReset,
+           ColGray,   ColReset,
            ColYellow, C->BindAddr, C->Port, ColReset);
-    printf("   %s│%s  beacon  %s%dms%s  jitter  %s%d%%%s\n",
+
+    printf("   %sbeacon%s  %s%dms%s    %sjitter%s  %s%d%%%s\n",
            ColGray, ColReset,
            ColCyan, C->BeaconMs, ColReset,
+           ColGray, ColReset,
            ColCyan, C->JitterPct, ColReset);
+
     if (C->Mode >= ModeTls)
-        printf("   %s│%s  cert    %s%s%s\n",
+        printf("   %scert%s    %s%s%s\n",
                ColGray, ColReset, ColGray, C->CertFile, ColReset);
+
     if (C->Mode == ModeMtls)
-        printf("   %s│%s  ca      %s%s%s\n",
+        printf("   %sca%s      %s%s%s\n",
                ColGray, ColReset, ColGray, C->CaFile, ColReset);
-    printf("   %s└──────────────────────────────────────────────┘%s\n", ColGray, ColReset);
-    printf("\n");
-    printf("   %sType 'help' for available commands.%s\n", ColGray, ColReset);
-    printf("\n");
+
+    printf("\n   %stype 'help' for commands%s\n\n",
+           ColGray, ColReset);
 }
