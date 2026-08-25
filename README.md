@@ -28,16 +28,6 @@ make certs              # generate CA + server + 1 agent cert
 make certs AGENTS=3     # generate CA + server + 3 agent certs
 ```
 
-Output layout:
-
-```
-certs/
-├── ca/             ca.key  ca.crt
-├── server/         server.key  server.crt  ca.crt
-├── agent-1/        agent.key   agent.crt   ca.crt
-└── agent-N/
-```
-
 ## Server
 
 ```bash
@@ -164,5 +154,7 @@ For authorized security testing and red team lab use only.
 ---
 
 <p align="center">
-  <a href="https://github.com/matrixtm26">@matrixtm26</a>
+  &copy;Copyright 2023-2026 
+  <a href="https://github.com/matrixtm26">@MatrixTM26</a>
+  &middot;All right reserved
 </p>
