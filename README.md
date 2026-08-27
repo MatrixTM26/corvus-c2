@@ -154,7 +154,15 @@ For authorized security testing and red team lab use only.
 ---
 
 <p align="center">
-  &copy;Copyright 2023-2026 
-  <a href="https://github.com/matrixtm26">@MatrixTM26</a>
-  &middot;All right reserved
+    &copy;
+    Copyright 2023-2026 
+    <a href="https://github.com/matrixtm26">@MatrixTM26</a>
+    &nbsp;
+    &middot;
+    &nbsp;
+    All right reserved.
+    <br>
+    Licensed under
+    &nbsp;
+    <a href="./LICENSE">AGPL-V3</a>
 </p>
