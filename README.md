@@ -34,18 +34,18 @@ make certs AGENTS=3     # generate CA + server + 3 agent certs
 ./build/server/corvus -s <bind> -p <port> -m <mode> [options]
 ```
 
-| Flag | Alias | Description | Default |
-|------|-------|-------------|---------|
-| `-s` | | Bind address | `0.0.0.0` |
-| `-p` | | Listen port | `4444` |
-| `-m` | | Transport mode | `tcp` |
-| `--cert` | | TLS certificate | `certs/server/server.crt` |
-| `--key` | | TLS private key | `certs/server/server.key` |
-| `--ca` | | CA cert (mTLS only) | `certs/server/ca.crt` |
-| `--path` | | HTTP beacon path | `/update` |
-| `--ua` | | User-Agent to match | Chrome UA |
-| `--beacon` | | Beacon interval ms | `3000` |
-| `--jitter` | | Jitter percent | `15` |
+| Flag       | Alias | Description         | Default                   |
+| ---------- | ----- | ------------------- | ------------------------- |
+| `-s`       |       | Bind address        | `0.0.0.0`                 |
+| `-p`       |       | Listen port         | `4444`                    |
+| `-m`       |       | Transport mode      | `tcp`                     |
+| `--cert`   |       | TLS certificate     | `certs/server/server.crt` |
+| `--key`    |       | TLS private key     | `certs/server/server.key` |
+| `--ca`     |       | CA cert (mTLS only) | `certs/server/ca.crt`     |
+| `--path`   |       | HTTP beacon path    | `/update`                 |
+| `--ua`     |       | User-Agent to match | Chrome UA                 |
+| `--beacon` |       | Beacon interval ms  | `3000`                    |
+| `--jitter` |       | Jitter percent      | `15`                      |
 
 ## Agent
 
@@ -53,44 +53,47 @@ make certs AGENTS=3     # generate CA + server + 3 agent certs
 ./build/agent/agent -s <host> -p <port> -m <mode> [options]
 ```
 
-| Flag | Alias | Description | Default |
-|------|-------|-------------|---------|
-| `-s` | `-host` | C2 server address | `127.0.0.1` |
-| `-p` | `-port` | C2 server port | `4444` |
-| `-m` | `-mode` | Transport mode | `tcp` |
-| `--cert` | `-cert` | Client certificate | `certs/agent-1/agent.crt` |
-| `--key` | `-key` | Client private key | `certs/agent-1/agent.key` |
-| `--ca` | `-ca` | CA cert (mTLS only) | `certs/agent-1/ca.crt` |
-| `--path` | `-path` | HTTP beacon path | `/update` |
-| `--ua` | `-ua` | User-Agent header | Chrome UA |
-| `--beacon` | `-beacon` | Beacon interval ms | `3000` |
-| `--jitter` | `-jitter` | Jitter percent | `15` |
+| Flag       | Alias     | Description         | Default                   |
+| ---------- | --------- | ------------------- | ------------------------- |
+| `-s`       | `-host`   | C2 server address   | `127.0.0.1`               |
+| `-p`       | `-port`   | C2 server port      | `4444`                    |
+| `-m`       | `-mode`   | Transport mode      | `tcp`                     |
+| `--cert`   | `-cert`   | Client certificate  | `certs/agent-1/agent.crt` |
+| `--key`    | `-key`    | Client private key  | `certs/agent-1/agent.key` |
+| `--ca`     | `-ca`     | CA cert (mTLS only) | `certs/agent-1/ca.crt`    |
+| `--path`   | `-path`   | HTTP beacon path    | `/update`                 |
+| `--ua`     | `-ua`     | User-Agent header   | Chrome UA                 |
+| `--beacon` | `-beacon` | Beacon interval ms  | `3000`                    |
+| `--jitter` | `-jitter` | Jitter percent      | `15`                      |
 
 ## Transport Modes
 
-| Mode | Description |
-|------|-------------|
-| `tcp` / `raw` | Plain TCP socket |
-| `http` | HTTP POST beacon |
-| `tls` | Raw TLS (server cert not verified) |
-| `https` | HTTP over TLS (server cert not verified) |
-| `mtls` | Mutual TLS — both sides verify certificates |
+| Mode          | Description                                 |
+| ------------- | ------------------------------------------- |
+| `tcp` / `raw` | Plain TCP socket                            |
+| `http`        | HTTP POST beacon                            |
+| `tls`         | Raw TLS (server cert not verified)          |
+| `https`       | HTTP over TLS (server cert not verified)    |
+| `mtls`        | Mutual TLS — both sides verify certificates |
 
 ## Examples
 
 **TCP**
+
 ```bash
 ./build/server/corvus -s 0.0.0.0 -p 4444 -m tcp
 ./build/agent/agent     -s 10.0.0.1 -p 4444 -m tcp
 ```
 
 **HTTP**
+
 ```bash
 ./build/server/corvus -s 0.0.0.0 -p 8080 -m http --path /cdn/update
 ./build/agent/agent     -s 10.0.0.1 -p 8080 -m http --path /cdn/update
 ```
 
 **TLS**
+
 ```bash
 make certs
 ./build/server/corvus -s 0.0.0.0 -p 443 -m tls \
@@ -101,6 +104,7 @@ make certs
 ```
 
 **mTLS**
+
 ```bash
 make certs AGENTS=2
 ./build/server/corvus -s 0.0.0.0 -p 4444 -m mtls \
